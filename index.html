@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>ממלכת המספרים</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700;900&family=Press+Start+2P&display=swap">
+<style>
+/* Layout: one narrow column like a handheld console — HUD, pixel stage, then the active screen (map / play / shop / results) swaps in below. In play the stage gets shorter so the question card and the answer keys fit one phone screen. */
+:root{
+  --night:#1c1838; --panel:#2a2456; --panel-2:#352d6b; --cream:#fff4d6; --muted:#b9b1e6;
+  --gold:#ffc83d; --gold-deep:#c97a00; --brick:#c4581d; --red:#ef5a46; --green:#3ccf5c; --yellow:#ffd84a; --grey:#4a4380; --ink:#120f26;
+  --lava:#ff6a2a; --boss-bg:#4a1c3a; --ice:#2ad4ff;
+  --f-display:"Rubik",system-ui,"Segoe UI",Arial,sans-serif;
+  --f-pixel:"Press Start 2P",ui-monospace,"Courier New",monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--night);margin:0}
+body{color:var(--cream);font-family:var(--f-display);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:max(14px,env(safe-area-inset-top,0px));padding-bottom:max(28px,env(safe-area-inset-bottom,0px))}
+.app{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+body.playing{padding-top:max(8px,env(safe-area-inset-top,0px));padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+body.playing .app{gap:9px}
+button{font-family:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.ltr{direction:ltr;unicode-bidi:isolate;display:inline-block}
+.px{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+
+/* top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.logo{font-weight:900;font-size:clamp(1.15rem,5.6vw,2rem);white-space:nowrap;line-height:1;letter-spacing:.01em;color:var(--gold);
+  text-shadow:3px 3px 0 var(--brick),5px 5px 0 var(--ink);text-wrap:balance}
+body.playing .logo{font-size:1.1rem;text-shadow:2px 2px 0 var(--brick),3px 3px 0 var(--ink)}
+.top-r{display:flex;gap:8px;align-items:center}
+.chip{display:flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--ink);box-shadow:0 3px 0 var(--ink);
+  padding:6px 10px;border-radius:6px;font-family:var(--f-pixel);font-size:.7rem}
+body.playing .chip{padding:4px 8px}
+.coin{width:12px;height:14px;background:var(--gold);border:2px solid var(--gold-deep);border-radius:50%;display:inline-block}
+.mush-ico{width:16px;height:16px;display:block}
+.icon-btn{width:40px;height:34px;justify-content:center;padding:0;font-size:1rem}
+
+/* stage */
+.stage-wrap{position:relative;border:4px solid var(--ink);border-radius:8px;overflow:hidden;box-shadow:0 6px 0 var(--ink);background:#6aa2ff}
+#stage{display:block;width:100%;aspect-ratio:16/9;image-rendering:pixelated;image-rendering:crisp-edges;object-fit:cover;object-position:50% 100%}
+body.playing #stage{aspect-ratio:2/1}
+.stage-hud{position:absolute;inset:8px 8px auto 8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;pointer-events:none}
+.tag{background:rgba(18,15,38,.78);padding:3px 9px;border-radius:4px;font-weight:700;font-size:.85rem}
+.tag.boss{background:var(--red);color:#fff}
+.dots{display:flex;gap:4px;align-items:center;direction:ltr;background:rgba(18,15,38,.78);padding:6px 7px;border-radius:4px;flex-wrap:wrap;max-width:60%}
+.dot{width:10px;height:10px;background:#5a5294;border-radius:2px}
+.dot.ok{background:var(--green)} .dot.bad{background:var(--red)} .dot.now{background:var(--gold);box-shadow:0 0 0 2px var(--cream)}
+
+.screen{display:flex;flex-direction:column;gap:14px}
+#play{gap:9px}
+.card{background:var(--panel);border:3px solid var(--ink);border-radius:10px;box-shadow:0 5px 0 var(--ink);padding:16px;min-width:0}
+h2{margin:0;font-size:1.15rem;font-weight:900;text-wrap:balance}
+h3{margin:14px 0 8px;font-size:.95rem;font-weight:900;color:var(--gold);letter-spacing:.02em}
+.sub{margin:2px 0 0;color:var(--muted);font-size:.95rem;text-wrap:pretty}
+
+/* big pixel buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:900;font-size:1.1rem;padding:12px 18px;border-radius:8px;
+  background:var(--gold);color:var(--ink);border:3px solid var(--ink);box-shadow:inset 0 -5px 0 var(--gold-deep),0 4px 0 var(--ink);transition:transform .06s}
+.btn:active{transform:translateY(3px);box-shadow:inset 0 -3px 0 var(--gold-deep),0 1px 0 var(--ink)}
+.btn.alt{background:var(--panel-2);color:var(--cream);box-shadow:inset 0 -5px 0 #241e4d,0 4px 0 var(--ink)}
+.btn.green{background:var(--green);box-shadow:inset 0 -5px 0 #1f8a38,0 4px 0 var(--ink)}
+.btn.ice{background:var(--ice);box-shadow:inset 0 -5px 0 #0a7aa8,0 4px 0 var(--ink)}
+.btn:disabled{opacity:.5;cursor:default}
+
+.castle{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;background:linear-gradient(180deg,#3a2f78,#2a2456)}
+.castle .best{font-size:.9rem;color:var(--muted);margin-top:6px}
+.castle .best b{color:var(--gold);font-family:var(--f-pixel);font-size:.75rem}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card.mini{display:flex;flex-direction:column;gap:8px}
+.card.mini .sub{font-size:.88rem}
+.card.mini .btn{margin-top:auto;font-size:1rem;padding:10px 12px}
+.weak-card{background:linear-gradient(180deg,#5a2a52,#3a1e44)}
+.shop-card{background:linear-gradient(180deg,#2a4a72,#22345a)}
+@media (max-width:370px){.duo{grid-template-columns:1fr}}
+
+/* chapters */
+.chap-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.chap-n{font-family:var(--f-pixel);font-size:.65rem;color:var(--ink);background:var(--gold);padding:4px 7px;border-radius:4px}
+.topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px;margin-top:12px}
+.topic{min-height:74px;border-radius:6px;background:var(--brick);border:3px solid var(--ink);color:var(--cream);text-align:center;
+  box-shadow:inset 0 -5px 0 #8a3a10,inset 0 3px 0 #e07a3a,0 3px 0 var(--ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;min-width:0;padding:8px 6px 10px}
+.topic .tid{font-family:var(--f-pixel);font-size:.75rem}
+.topic b{font-weight:900;font-size:.92rem;line-height:1.2;text-wrap:balance}
+.topic .lv{position:absolute;top:5px;inset-inline-end:5px;width:10px;height:10px;border-radius:2px;border:2px solid var(--ink)}
+.topic.mix{background:#3a8f4a;box-shadow:inset 0 -5px 0 #24653a,inset 0 3px 0 #5cb86a,0 3px 0 var(--ink)}
+.topic:active,.boss-row:active{transform:translateY(2px)}
+.boss-row{width:100%;margin-top:10px;display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:8px;border:3px solid var(--ink);text-align:start;
+  background:var(--boss-bg);box-shadow:inset 0 -5px 0 #2a0e20,inset 0 3px 0 #7a2e5a,0 3px 0 var(--ink)}
+.boss-row[data-b="yeti"]{background:#1e3a5c;box-shadow:inset 0 -5px 0 #10223a,inset 0 3px 0 #3a6a94,0 3px 0 var(--ink)}
+.boss-row[data-b="dragon"]{background:#2e1a52;box-shadow:inset 0 -5px 0 #180c30,inset 0 3px 0 #5a3a8a,0 3px 0 var(--ink)}
+.boss-row canvas{width:44px;height:auto;flex:none}
+.boss-row b{display:block;font-weight:900;font-size:.98rem;line-height:1.2}
+.boss-row small{display:block;font-size:.8rem;color:var(--muted)}
+
+/* how am I doing table */
+.how{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.how-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel-2);border-radius:6px;padding:7px 10px}
+.how-row .nm{display:flex;gap:8px;align-items:baseline;min-width:0}
+.how-row .nm i{font-style:normal;font-family:var(--f-pixel);font-size:.62rem;color:var(--gold);flex:none}
+.how-row .nm span{font-weight:700;font-size:.92rem}
+.lvchip{font-size:.78rem;font-weight:900;padding:2px 8px;border-radius:4px;white-space:nowrap;flex:none}
+.c0{background:var(--grey);color:#c9c2f0} .c1{background:var(--red);color:#fff} .c2{background:var(--yellow);color:var(--ink)} .c3{background:var(--green);color:var(--ink)}
+
+/* shop */
+.shop-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.item{background:var(--panel-2);border:2px solid var(--ink);border-radius:8px;padding:12px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
+.item canvas{height:52px;width:auto}
+.item b{font-weight:900;font-size:1rem}
+.item p{margin:0;font-size:.82rem;color:var(--muted);line-height:1.35}
+.item .have{font-size:.8rem;color:var(--cream);font-weight:700}
+.item .btn{margin-top:auto;font-size:.95rem;padding:8px 12px;width:100%}
+.item .btn:disabled{background:var(--grey);color:#b9b1e6;box-shadow:inset 0 -4px 0 #332d66,0 3px 0 var(--ink);opacity:1}
+.item.worn{border-color:var(--gold)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;pointer-events:none;
+  background:var(--green);color:var(--ink);font-weight:900;padding:10px 18px;border-radius:8px;border:3px solid var(--ink);box-shadow:0 4px 0 var(--ink);transition:opacity .2s,transform .2s;z-index:20}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* question card */
+.qcard{background:var(--panel);border:3px solid var(--ink);border-radius:10px;box-shadow:0 4px 0 var(--ink);padding:10px 14px 12px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.qcard.boss{background:linear-gradient(180deg,#5a1f3e,var(--boss-bg));border-color:var(--lava);box-shadow:0 4px 0 var(--ink),0 0 0 2px var(--ink)}
+.qcard.golden{background:linear-gradient(180deg,#8a5a00,#5a3a00);border-color:var(--gold);box-shadow:0 4px 0 var(--ink),0 0 0 3px var(--gold);animation:glow .6s steps(2) infinite}
+@keyframes glow{50%{box-shadow:0 4px 0 var(--ink),0 0 0 3px #fff4d6}}
+.qtop{align-self:stretch;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);font-weight:700}
+.qstar{color:var(--ink);background:var(--gold);border-radius:4px;padding:0 7px;font-weight:900}
+.qtext{font-weight:700;font-size:clamp(1rem,4.4vw,1.18rem);line-height:1.45;text-wrap:balance}
+.qwords{font-weight:900;font-size:clamp(1.1rem,5vw,1.4rem);line-height:1.35;color:var(--gold);text-wrap:balance}
+.qbig{font-family:var(--f-pixel);font-size:clamp(.95rem,4.8vw,1.45rem);line-height:1.7;direction:ltr;unicode-bidi:isolate;word-spacing:-.15em}
+.qvert{font-family:var(--f-pixel);direction:ltr;display:grid;grid-template-columns:auto auto;column-gap:12px;row-gap:6px;font-size:clamp(1.1rem,6vw,1.5rem);text-align:right;line-height:1.2}
+.qvert .line{grid-column:1/-1;border-top:4px solid var(--cream)}
+.vis{width:100%;max-width:340px;height:auto;display:block;direction:ltr}
+.vis.small{max-width:150px;max-height:130px}
+.svt{font-family:var(--f-display);font-weight:700;font-size:14px;fill:var(--cream)}
+.svt.q{fill:var(--gold);font-family:var(--f-pixel);font-size:12px}
+.svt.ink{fill:var(--ink);font-size:13px} .svt.sm{font-size:12px}
+.arow{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:900;font-size:1.05rem}
+.ans{min-width:5.2ch;padding:8px 10px 4px;background:var(--cream);color:var(--ink);border-radius:6px;text-align:center;border-bottom:5px solid var(--gold-deep);
+  min-height:1.6em;font-family:var(--f-pixel);font-size:clamp(1.1rem,5.5vw,1.45rem);direction:ltr}
+.ans.empty::after{content:"_";animation:blink 1s steps(1) infinite}
+.ans.good{background:var(--green)} .ans.bad{background:var(--red);color:#fff}
+@keyframes blink{50%{opacity:0}}
+.fb{min-height:1.9em;text-align:center;font-weight:900;font-size:1rem;line-height:1.4;display:flex;flex-direction:column;align-items:center;justify-content:center;text-wrap:balance}
+.fb small{font-weight:500;font-size:.9rem;color:var(--cream);opacity:.92}
+.fb.good{color:var(--green)} .fb.bad{color:#ff9a8a} .fb.boss{color:var(--lava)} .fb.gold{color:var(--gold)}
+.fb b{color:var(--cream);background:rgba(255,255,255,.1);padding:0 6px;border-radius:4px}
+.pad{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;direction:ltr}
+.key{font-family:var(--f-pixel);font-size:1.1rem;padding:12px 0;border-radius:8px;background:var(--panel-2);border:3px solid var(--ink);
+  box-shadow:inset 0 -5px 0 #241e4d,0 4px 0 var(--ink);min-width:0}
+.key:active{transform:translateY(3px);box-shadow:inset 0 -3px 0 #241e4d,0 1px 0 var(--ink)}
+.key.go{grid-column:span 4;background:var(--green);color:var(--ink);box-shadow:inset 0 -5px 0 #1f8a38,0 4px 0 var(--ink);font-family:var(--f-display);font-weight:900;font-size:1.2rem}
+.key.del{font-family:var(--f-display);font-size:1.2rem}
+.choices{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:8px}
+.choices.long{grid-template-columns:1fr}
+.choice{font-family:var(--f-display);font-weight:900;font-size:1.15rem;line-height:1.3;padding:14px 10px;border-radius:8px;background:var(--panel-2);border:3px solid var(--ink);
+  box-shadow:inset 0 -5px 0 #241e4d,0 4px 0 var(--ink);min-width:0;text-wrap:balance}
+.choices.sym .choice{font-family:var(--f-pixel);font-size:1.05rem;direction:ltr}
+.choices.sym:not(.long) .choice{font-size:1.4rem}
+.choice:active{transform:translateY(3px)}
+.choice.good{background:var(--green);color:var(--ink)} .choice.bad{background:var(--red);color:#fff}
+.next{width:100%}
+.quit{align-self:center;color:var(--muted);font-size:.9rem;text-decoration:underline;padding:2px 8px}
+
+/* results */
+.res{text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.stars{font-size:2.6rem;letter-spacing:.15em;line-height:1}
+.stars .on{color:var(--gold);text-shadow:0 3px 0 var(--gold-deep)} .stars .off{color:#4a4380}
+.score{font-family:var(--f-pixel);font-size:1.8rem;color:var(--gold);direction:ltr}
+.boss-win{background:var(--boss-bg);border:2px solid var(--lava);color:var(--cream);border-radius:6px;padding:6px 12px;font-weight:900;text-wrap:balance}
+.tres{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;text-align:start}
+.tres div{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 9px;border-radius:6px;font-size:.85rem;font-weight:700}
+.mist{width:100%;display:flex;flex-direction:column;gap:6px;text-align:start}
+.mist:not(:empty)::before{content:"מה כדאי לחזור עליו:";font-weight:900;color:var(--gold);font-size:.95rem}
+.mi{background:var(--panel-2);border-radius:6px;padding:8px 10px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:.92rem}
+.mi .mq{flex:1 1 60%;min-width:0}
+.mi .ma{font-weight:900;color:var(--green)}
+.mi s{color:#ff9a8a;text-decoration-thickness:2px}
+.row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+@media (prefers-reduced-motion:reduce){.ans.empty::after,.qcard.golden{animation:none}.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">ממלכת המספרים</div>
+    <div class="top-r">
+      <div class="chip" title="פטריות כוח"><canvas class="mush-ico px" id="mushIco" width="8" height="8"></canvas><span id="mushTotal" class="ltr">0</span></div>
+      <div class="chip" title="מטבעות"><span class="coin"></span><span id="coinTotal" class="ltr">0</span></div>
+      <button class="chip icon-btn" id="muteBtn" aria-label="צליל">🔊</button>
+    </div>
+  </div>
+
+  <div class="stage-wrap" id="stageWrap">
+    <canvas id="stage" width="256" height="144" aria-label="במת המשחק"></canvas>
+    <div class="stage-hud" id="stageHud" hidden>
+      <div class="tag" id="modeTag"></div>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <section class="screen" id="home">
+    <div class="card castle">
+      <div>
+        <h2>מבחן הטירה</h2>
+        <p class="sub">12 שאלות מכל החוברת: מספרים, פעולות חשבון וגיאומטריה. התשובות נחשפות בסוף, עם טבלת "איך הצלחתי?", ואז מחכה בוס.</p>
+        <div class="best" id="bestLine"></div>
+      </div>
+      <button class="btn" id="testBtn">יוצאים!</button>
+    </div>
+
+    <div id="chapters" class="screen"></div>
+
+    <div class="duo">
+      <div class="card mini weak-card">
+        <h2>השאלות שטעיתי בהן</h2>
+        <p class="sub" id="weakSub">כל שאלה שטעית בה נשמרת כאן, עד שתפתור אותה נכון.</p>
+        <button class="btn" id="weakBtn">לתרגל</button>
+      </div>
+      <div class="card mini shop-card">
+        <h2>החנות</h2>
+        <p class="sub">פטריות כוח, כרטיסי לבנת זהב ותלבושות, במטבעות שאספת.</p>
+        <button class="btn ice" id="shopBtn">לחנות</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>איך הצלחתי?</h2>
+      <p class="sub">כמו בעמוד הסיכום של החוברת. הצבע מתעדכן לפי התשובות האחרונות בכל נושא.</p>
+      <div class="how" id="how"></div>
+    </div>
+  </section>
+
+  <!-- SHOP -->
+  <section class="screen" id="shop" hidden>
+    <div class="card">
+      <div class="shop-head">
+        <h2>החנות</h2>
+        <div class="chip"><span class="coin"></span><span id="shopCoins" class="ltr">0</span></div>
+      </div>
+      <p class="sub">כל תשובה נכונה שווה מטבע. ניצחון על בוס שווה הרבה יותר.</p>
+      <h3>ציוד לקרב</h3>
+      <div class="shop-grid" id="shopGear"></div>
+      <h3>תלבושות לגיבור</h3>
+      <div class="shop-grid" id="shopSkins"></div>
+    </div>
+    <button class="btn alt" id="shopBack">חזרה למפה</button>
+  </section>
+
+  <!-- PLAY -->
+  <section class="screen" id="play" hidden>
+    <div class="qcard" id="qCard">
+      <div class="qtop"><span id="qTopic"></span><span class="qstar" id="qStar" hidden>★ אתגר</span></div>
+      <div class="qtext" id="qText"></div>
+      <div class="qwords" id="qWords"></div>
+      <div class="qbig" id="qBig"></div>
+      <div class="qvert" id="qVert"></div>
+      <div id="qVis"></div>
+      <div class="arow" id="aRow"><span class="ans empty" id="ans"></span><span id="qUnit"></span></div>
+    </div>
+    <div class="fb" id="fb" aria-live="polite"></div>
+    <div class="pad" id="pad">
+      <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button><button class="key" data-k="3">3</button><button class="key" data-k="4">4</button><button class="key" data-k="5">5</button>
+      <button class="key" data-k="6">6</button><button class="key" data-k="7">7</button><button class="key" data-k="8">8</button><button class="key" data-k="9">9</button><button class="key" data-k="0">0</button>
+      <button class="key del" data-k="del" aria-label="מחק">⌫</button><button class="key go" id="goKey" data-k="go">בדיקה</button>
+    </div>
+    <div class="choices" id="choices" hidden></div>
+    <button class="btn next" id="nextBtn" hidden>המשך</button>
+    <button class="quit" id="quitBtn">חזרה למפה</button>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="screen" id="results" hidden>
+    <div class="card res">
+      <h2 id="resTitle"></h2>
+      <div class="stars" id="stars"></div>
+      <div class="score" id="score"></div>
+      <div class="boss-win" id="bossLine" hidden></div>
+      <p class="sub" id="resMsg"></p>
+      <div class="tres" id="tres"></div>
+      <div class="mist" id="mist"></div>
+      <div class="row">
+        <button class="btn" id="againBtn">שוב!</button>
+        <button class="btn green" id="fixBtn">לתרגל את הטעויות</button>
+        <button class="btn alt" id="mapBtn">למפה</button>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+/* ---------- question generators: one family per topic of the review booklet ---------- */
+const R = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const shuffle = a => { for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const fmt = n => n.toLocaleString('en-US');
+const L = s => `<span class="ltr">${s}</span>`;
+const CM = 'ס"מ';
+const sign = (a,b) => a>b ? '>' : a<b ? '<' : '=';
+const mk = (t,o) => Object.assign({t, kind:'num'}, o);
+
+const TOPICS = [
+  {id:'1.1', ch:1, name:'כתיבת מספרים עד 10,000', tile:'מספרים ומילים'},
+  {id:'1.2', ch:1, name:'ערך הספרה', tile:'ערך הספרה'},
+  {id:'1.3', ch:1, name:'סדרות במספרים', tile:'סדרות'},
+  {id:'1.4', ch:1, name:'ישר המספרים', tile:'ישר המספרים'},
+  {id:'2.1', ch:2, name:'ארבע פעולות החשבון', tile:'ארבע הפעולות'},
+  {id:'2.2', ch:2, name:'סדר פעולות החשבון', tile:'סדר פעולות'},
+  {id:'2.3', ch:2, name:'בעיות מילוליות', tile:'בעיות מילוליות'},
+  {id:'3.1', ch:3, name:'סוגי זוויות', tile:'זוויות'},
+  {id:'3.2', ch:3, name:'מדידות', tile:'מדידות'}
+];
+const CHAPTERS = [
+  {n:1, name:'מספרים עד 10,000'},
+  {n:2, name:'פעולות החשבון'},
+  {n:3, name:'גיאומטריה'}
+];
+const topicById = id => TOPICS.find(t=>t.id===id);
+
+/* Hebrew number words, counting (feminine) form as in the booklet: "שלושת אלפים מאתיים ארבעים ושש" */
+const U = ['','אחת','שתיים','שלוש','ארבע','חמש','שש','שבע','שמונה','תשע'];
+const TEENS = ['עשר','אחת עשרה','שתים עשרה','שלוש עשרה','ארבע עשרה','חמש עשרה','שש עשרה','שבע עשרה','שמונה עשרה','תשע עשרה'];
+const TENS = ['','','עשרים','שלושים','ארבעים','חמישים','שישים','שבעים','שמונים','תשעים'];
+const HUN = ['','מאה','מאתיים','שלוש מאות','ארבע מאות','חמש מאות','שש מאות','שבע מאות','שמונה מאות','תשע מאות'];
+const THO = ['','אלף','אלפיים','שלושת אלפים','ארבעת אלפים','חמשת אלפים','ששת אלפים','שבעת אלפים','שמונת אלפים','תשעת אלפים','עשרת אלפים'];
+function words(n){
+  if (n===0) return 'אפס';
+  const p = [], th = Math.floor(n/1000), h = Math.floor(n%1000/100), r = n%100;
+  if (th) p.push(THO[th]);
+  if (h) p.push(HUN[h]);
+  if (r){
+    if (r<10) p.push(U[r]);
+    else if (r<20) p.push(TEENS[r-10]);
+    else { p.push(TENS[Math.floor(r/10)]); if (r%10) p.push(U[r%10]); }
+  }
+  if (p.length>1) p[p.length-1] = 'ו' + p[p.length-1];
+  return p.join(' ');
+}
+const PLACE = ['יחידות','עשרות','מאות','אלפים'];
+const digs = n => String(n).split('').map(Number);
+function nice4(){
+  const d = [R(1,9), Math.random()<.3?0:R(1,9), Math.random()<.35?0:R(1,9), Math.random()<.35?0:R(1,9)];
+  return +d.join('');
+}
+// look-alike numbers: same digits in other places (8,040 / 8,400 / 8,004), then near numbers
+function variants(n){
+  const d = digs(n), sw = new Set();
+  for (let i=0;i<d.length;i++) for (let j=i+1;j<d.length;j++){
+    if (d[i]===d[j]) continue;
+    const e = d.slice(); [e[i],e[j]] = [e[j],e[i]];
+    if (e[0]===0) continue;
+    const v = +e.join(''); if (v!==n) sw.add(v);
+  }
+  const out = shuffle([...sw]);
+  [n+1000, n+100, n-100, n+10, n-10].forEach(v=>{ if (v>999 && v<10000 && v!==n && !out.includes(v)) out.push(v); });
+  return out;
+}
+
+/* ---------- SVG pictures ---------- */
+const INK = '#120f26', CREAM = '#fff4d6', GOLD = '#ffc83d';
+function svgLine(s, e, n, k){
+  const x0 = 26, x1 = 314, y = 46, step = (x1-x0)/n, xk = x0 + k*step;
+  let t = `<svg viewBox="0 0 340 76" class="vis" role="img" aria-label="ישר מספרים מ-${fmt(s)} עד ${fmt(e)}">`;
+  t += `<line x1="${x0-12}" y1="${y}" x2="${x1+12}" y2="${y}" stroke="${CREAM}" stroke-width="3" stroke-linecap="round"/>`;
+  for (let i=0;i<=n;i++){
+    const x = x0 + i*step, h = (i===0||i===n) ? 9 : 6;
+    t += `<line x1="${x}" y1="${y-h}" x2="${x}" y2="${y+h}" stroke="${CREAM}" stroke-width="2.5"/>`;
+  }
+  t += `<text x="${x0}" y="${y+26}" text-anchor="middle" class="svt">${fmt(s)}</text><text x="${x1}" y="${y+26}" text-anchor="middle" class="svt">${fmt(e)}</text>`;
+  t += `<polygon points="${xk-7},${y-24} ${xk+7},${y-24} ${xk},${y-11}" fill="${GOLD}" stroke="${INK}" stroke-width="1.5"/>`;
+  t += `<text x="${xk}" y="${y-28}" text-anchor="middle" class="svt q">?</text></svg>`;
+  return t;
+}
+function svgAngle(deg, rot){
+  const r = 78, rad = a => a*Math.PI/180;
+  const P = a => [r*Math.cos(rad(a)), -r*Math.sin(rad(a))];
+  const p1 = P(rot), p2 = P(rot+deg), pts = [[0,0],p1,p2];
+  const xs = pts.map(p=>p[0]), ys = pts.map(p=>p[1]), pad = 14;
+  const vx = Math.min(...xs)-pad, vy = Math.min(...ys)-pad, vw = Math.max(...xs)-vx+pad, vh = Math.max(...ys)-vy+pad;
+  const a1 = [20*Math.cos(rad(rot)), -20*Math.sin(rad(rot))], a2 = [20*Math.cos(rad(rot+deg)), -20*Math.sin(rad(rot+deg))];
+  return `<svg viewBox="${vx.toFixed(1)} ${vy.toFixed(1)} ${vw.toFixed(1)} ${vh.toFixed(1)}" class="vis small" role="img" aria-label="זווית">
+    <path d="M ${a1[0].toFixed(1)} ${a1[1].toFixed(1)} A 20 20 0 0 0 ${a2[0].toFixed(1)} ${a2[1].toFixed(1)}" fill="none" stroke="${GOLD}" stroke-width="3"/>
+    <line x1="0" y1="0" x2="${p1[0].toFixed(1)}" y2="${p1[1].toFixed(1)}" stroke="${CREAM}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="${p2[0].toFixed(1)}" y2="${p2[1].toFixed(1)}" stroke="${CREAM}" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="4" fill="${GOLD}"/></svg>`;
+}
+function svgClock(H){
+  let t = `<svg viewBox="-56 -56 112 112" class="vis small" role="img" aria-label="שעון בשעה ${H}:00"><circle r="50" fill="${CREAM}" stroke="${INK}" stroke-width="4"/>`;
+  for (let i=0;i<12;i++){ const a = i*30*Math.PI/180; t += `<line x1="${(44*Math.sin(a)).toFixed(1)}" y1="${(-44*Math.cos(a)).toFixed(1)}" x2="${(48*Math.sin(a)).toFixed(1)}" y2="${(-48*Math.cos(a)).toFixed(1)}" stroke="${INK}" stroke-width="2"/>`; }
+  [[12,0,-33],[3,35,5],[6,0,42],[9,-35,5]].forEach(([n,x,y])=>t += `<text x="${x}" y="${y}" text-anchor="middle" class="svt ink">${n}</text>`);
+  const a = H*30*Math.PI/180;
+  t += `<line x1="0" y1="0" x2="0" y2="-36" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`;
+  t += `<line x1="0" y1="0" x2="${(25*Math.sin(a)).toFixed(1)}" y2="${(-25*Math.cos(a)).toFixed(1)}" stroke="#c4581d" stroke-width="5" stroke-linecap="round"/><circle r="4" fill="${INK}"/></svg>`;
+  return t;
+}
+function svgRuler(a, b){
+  const X = cm => 22 + cm*29.6;
+  let t = `<svg viewBox="0 0 340 84" class="vis" role="img" aria-label="פס מעל סרגל">`;
+  t += `<rect x="${X(a)}" y="6" width="${X(b)-X(a)}" height="13" rx="2" fill="${GOLD}" stroke="${INK}" stroke-width="2"/>`;
+  t += `<line x1="${X(a)}" y1="19" x2="${X(a)}" y2="32" stroke="${GOLD}" stroke-width="1.5" stroke-dasharray="3 2"/><line x1="${X(b)}" y1="19" x2="${X(b)}" y2="32" stroke="${GOLD}" stroke-width="1.5" stroke-dasharray="3 2"/>`;
+  t += `<rect x="8" y="32" width="324" height="48" rx="4" fill="#f2d07a" stroke="${INK}" stroke-width="2"/>`;
+  for (let i=0;i<=20;i++){ const x = X(i/2), h = i%2 ? 8 : 15; t += `<line x1="${x}" y1="32" x2="${x}" y2="${32+h}" stroke="${INK}" stroke-width="1.6"/>`; if (i%2===0) t += `<text x="${x}" y="68" text-anchor="middle" class="svt ink sm">${i/2}</text>`; }
+  return t + '</svg>';
+}
+
+/* ---------- generators ---------- */
+const ORD = {5:'החמישי',6:'השישי',7:'השביעי',8:'השמיני',9:'התשיעי',10:'העשירי'};
+const ruleTxt = d => d>0 ? `עולה ב-${fmt(d)}` : `יורדת ב-${fmt(-d)}`;
+function seqCfg(){
+  return pick([()=>({s:R(1,4)*5,d:5}), ()=>({s:R(1,3)*100,d:100}), ()=>({s:R(1,3)*1000,d:1000}), ()=>({s:R(9,12)*10,d:-10}),
+    ()=>({s:R(4,7)*50,d:50}), ()=>({s:R(1,4)*6,d:6}), ()=>({s:R(3,5)*3,d:3}), ()=>({s:R(45,52)*100,d:-100}), ()=>({s:R(2,5)*4,d:4}),
+    ()=>({s:R(6,9)*1000,d:-1000}), ()=>({s:R(2,6)*25,d:25})])();
+}
+const terms = (c,n) => Array.from({length:n}, (_,i)=>c.s + i*c.d);
+const op = (a,o,b) => `${fmt(a)} ${o} ${fmt(b)}`;
+const angleType = deg => deg<90 ? 'חדה' : deg===90 ? 'ישרה' : 'קהה';
+const ANGLE_CH = ['חדה','ישרה','קהה'];
+const ANGLE_EX = {'חדה':'זווית חדה קטנה מזווית ישרה (מפינה של דף).', 'ישרה':'זווית ישרה היא בדיוק כמו פינה של דף.', 'קהה':'זווית קהה גדולה מזווית ישרה (מפינה של דף).'};
+const TF = ['נכון','לא נכון'];
+const m1 = m => m===1 ? 'מטר אחד' : `${m} מטרים`;
+
+const GEN = {
+  '1.1': [
+    () => { const n = Math.random()<.06 ? 10000 : nice4();
+      return mk('1.1',{text:'כתבו במספרים:', words:words(n), ans:n, sum:'במספרים: ' + words(n), ex:'במקום שאין בו מאות או עשרות כותבים 0.'}); },
+    () => { const n = nice4(), v = variants(n).slice(0,2);
+      return mk('1.1',{kind:'choice', long:true, text:'איך כותבים את המספר הזה במילים?', big:fmt(n), ans:words(n), ch:shuffle([n,...v].map(words)), sum:'במילים: ' + L(fmt(n))}); },
+    () => { const after = Math.random()<.5;
+      const n = after ? pick([R(1,9)*1000-1, R(1,8)*1000 + R(1,9)*100 - 1, 9999, R(1000,9998)]) : pick([R(1,9)*1000, R(1,9)*1000 + R(1,9)*100, R(1001,9999)]);
+      const ans = after ? n+1 : n-1, w = after ? 'אחרי' : 'לפני';
+      return mk('1.1',{text:`מהו המספר שבא מיד ${w} ${L(fmt(n))}?`, ans, sum:`מיד ${w} ${L(fmt(n))}`, ex: after ? 'מוסיפים 1.' : 'מורידים 1.'}); },
+    () => { let a, b, A, B; const k = R(1,3);
+      if (k===1){ a = nice4(); b = variants(a).find(x=>Math.abs(x-a)<5000) || a+100; A = fmt(a); B = fmt(b); }
+      else if (k===2){ const x = R(2,9)*1000; a = x + R(1,9); b = x - R(1,9); A = fmt(a); B = fmt(b); }
+      else { const th = R(1,9)*1000, h = R(1,9)*100; a = th + h; b = Math.random()<.5 ? a : a + pick([-100,100,10,-10]); A = op(th,'+',h); B = fmt(b); }
+      if (Math.random()<.5){ [a,b] = [b,a]; [A,B] = [B,A]; }
+      return mk('1.1',{kind:'choice', sym:true, text:'איזה סימן מתאים: &lt;, &gt; או =?', big:`${A} ◯ ${B}`, ans:sign(a,b), ch:['<','=','>'], sum:L(`${A} ◯ ${B}`),
+        ex:'משווים קודם את ספרת האלפים, אחר כך המאות, וכן הלאה. הפה של הסימן פתוח לצד של המספר הגדול.'}); }
+  ],
+  '1.2': [
+    () => { const d = R(1,9), p = R(0,3);
+      const a = [0,1,2,3].map(i=>{ if (3-i===p) return d; let x; do { x = R(i===0?1:0, 9); } while (x===d); return x; });
+      const n = +a.join(''), ans = d * 10**p;
+      return mk('1.2',{text:`מה הערך של הספרה ${d} במספר?`, big:fmt(n), ans, sum:`ערך הספרה ${d} ב-${L(fmt(n))}`, ex:`הספרה ${d} נמצאת במקום ה${PLACE[p]}, ולכן ערכה ${fmt(ans)}.`}); },
+    () => { let n, parts; do { n = nice4(); parts = digs(n).map((x,i)=>x*10**(3-i)).filter(x=>x); } while (parts.length<3);
+      const h = R(0,parts.length-1), big = fmt(n) + ' = ' + parts.map((v,i)=>i===h?'?':fmt(v)).join(' + ');
+      return mk('1.2',{text:'מפרקים לפי ערך המקום. מה חסר במקום סימן השאלה?', big, ans:parts[h], sum:L(big)}); },
+    () => { const n = nice4(), d = digs(n);
+      if (Math.random()<.5 || d.includes(1)){
+        const big = d.map((x,i)=>x*10**(3-i)).filter(x=>x).map(fmt).join(' + ') + ' =';
+        return mk('1.2',{text:'כתבו כמספר:', big, ans:n, sum:L(big)});
+      }
+      const names = ['אלפים','מאות','עשרות','יחידות'], ws = d.map((x,i)=>x ? `${x} ${names[i]}` : null).filter(Boolean).join(' + ');
+      return mk('1.2',{text:'כתבו כמספר:', words:ws, ans:n, sum:ws, ex:'במקום שאין בו כלום כותבים 0.'}); },
+    () => { const k = R(2,9);
+      const o = pick([[k*100,'עשרות',k*10],[k*1000,'מאות',k*10],[10000,'אלפים',10],[k*1000,'עשרות',k*100],[10000,'מאות',100]]);
+      return mk('1.2',{text:`כמה ${o[1]} יש ב-${L(fmt(o[0]))}?`, ans:o[2], sum:`כמה ${o[1]} ב-${L(fmt(o[0]))}`, ex:`${L(fmt(o[0]))} = ${fmt(o[2])} ${o[1]}`}); },
+    () => { const step = pick([10,100,1000]), plus = Math.random()<.6, p = Math.round(Math.log10(step)); let n;
+      do { n = R(1000,8999); } while (plus ? Math.floor(n/step)%10===9 : Math.floor(n/step)%10===0);
+      const ans = plus ? n+step : n-step, big = op(n, plus?'+':'−', step) + ' =';
+      return mk('1.2',{text:'חשבו בעל-פה:', big, ans, sum:L(big), ex:`רק ספרת ה${PLACE[p]} משתנה.`}); }
+  ],
+  '1.3': [
+    () => { const c = seqCfg(), tt = terms(c,5), big = tt.slice(0,4).map(fmt).join(', ') + ', ?';
+      return mk('1.3',{text:'המשיכו את הסדרה:', big, ans:tt[4], sum:L(big), ex:`החוק: הסדרה ${ruleTxt(c.d)}.`}); },
+    () => { const c = seqCfg(), tt = terms(c,5), i = R(1,4), big = tt.map((x,j)=>j===i?'?':fmt(x)).join(', ');
+      return mk('1.3',{text:'מה המספר החסר בסדרה?', big, ans:tt[i], sum:L(big), ex:`החוק: הסדרה ${ruleTxt(c.d)}.`}); },
+    () => { const c = seqCfg(), tt = terms(c,4), big = tt.map(fmt).join(', ') + ', ...';
+      return mk('1.3',{kind:'choice', text:'מה החוק של הסדרה?', big, ans:ruleTxt(c.d), ch:shuffle([ruleTxt(c.d), ruleTxt(-c.d), ruleTxt(2*c.d)]), sum:L(big),
+        ex:'בודקים בכמה עולים או יורדים מאיבר לאיבר.'}); },
+    () => { const d = pick([5,10,4,3,6,100,2]), k = R(6,10), big = [1,2,3,4].map(i=>fmt(i*d)).join(', ') + ', ...';
+      return mk('1.3',{text:`מהו האיבר ${ORD[k]} בסדרה?`, big, ans:k*d, sum:`האיבר ${ORD[k]} ב-${L(big)}`, ex:`ממשיכים לספור ב-${d} עד המקום ה-${k}: ${L(k+' × '+d+' = '+fmt(k*d))}`}); }
+  ],
+  '1.4': [
+    () => { const c = pick([[0,100,10],[0,1000,10],[2000,3000,10],[0,10000,10],[1000,2000,10],[0,100,5],[0,1000,5],[5000,6000,10]]);
+      const [s,e,n] = c, k = R(1,n-1), step = (e-s)/n, ans = s + k*step;
+      return mk('1.4',{text:'לאיזה מספר מצביע החץ?', vis:svgLine(s,e,n,k), ans, sum:`ישר מספרים ${L(fmt(s)+' – '+fmt(e))}`, ex:`כל קפיצה שווה ${fmt(step)}. החץ נמצא ${k===1?'קפיצה אחת':k+' קפיצות'} אחרי ${fmt(s)}.`}); },
+    () => { const k = R(1,3); let a, b;
+      if (k===1){ a = R(1,6)*10; b = a + 20*R(1,2); } else if (k===2){ a = R(1,7)*100; b = a + pick([200,400]); } else { a = R(1,8)*1000; b = a + 1000; }
+      return mk('1.4',{text:`איזה מספר נמצא בדיוק באמצע בין ${L(fmt(a))} ל-${L(fmt(b))}?`, vis:svgLine(a,b,10,5), ans:(a+b)/2, sum:`באמצע בין ${L(fmt(a))} ל-${L(fmt(b))}`, ex:`ההפרש הוא ${fmt(b-a)}, וחצי ממנו ${fmt((b-a)/2)}.`}); }
+  ],
+  '2.1': [
+    () => { const a = R(1000,5999), b = R(1000, Math.min(3999, 9999-a));
+      return mk('2.1',{text:'חשבו במאונך:', vert:{a,b,op:'+'}, ans:a+b, sum:L(op(a,'+',b)), ex:'יחידות מתחת ליחידות, עשרות מתחת לעשרות. לא לשכוח את מה שעובר הלאה.'}); },
+    () => { const a = Math.random()<.3 ? R(3,9)*1000 : R(3000,9999), b = R(1000, a-500);
+      return mk('2.1',{text:'חשבו במאונך:', vert:{a,b,op:'−'}, ans:a-b, sum:L(op(a,'−',b)), ex:'כשאין מספיק, פורטים מהמקום שמשמאל.'}); },
+    () => { const a = R(2,9), b = R(2,9);
+      if (Math.random()<.55){ const big = `${a} × ${b} =`; return mk('2.1',{text:'לוח הכפל:', big, ans:a*b, sum:L(big)}); }
+      const big = `${a*b} : ${a} =`; return mk('2.1',{text:'חילוק:', big, ans:b, sum:L(big), ex:`כי ${L(a+' × '+b+' = '+a*b)}`}); },
+    () => { if (Math.random()<.5){ let a, b; do { a = R(11,49); b = R(2,5); } while (a*b>150);
+        const big = `${a} × ${b} =`; return mk('2.1',{text:'חשבו:', big, ans:a*b, sum:L(big), ex:`מפרקים: ${L(`${Math.floor(a/10)*10} × ${b} + ${a%10} × ${b}`)}`}); }
+      if (Math.random()<.3){ const n = R(2,9)*10, big = `${n} : 10 =`; return mk('2.1',{text:'חשבו:', big, ans:n/10, sum:L(big)}); }
+      const d = R(2,4), q = R(11, Math.floor(99/d)), big = `${q*d} : ${d} =`;
+      return mk('2.1',{text:'חשבו:', big, ans:q, sum:L(big), ex:`בודקים: ${L(`${q} × ${d} = ${q*d}`)}`}); },
+    () => { const f = R(1,5); let big, ans, ex;
+      if (f===1){ const a = R(20,60)*50, b = R(10,50)*100; ans = a+b; big = `? − ${fmt(a)} = ${fmt(b)}`; ex = `${L(op(b,'+',a)+' = '+fmt(ans))}`; }
+      else if (f===2){ const a = R(4,9)*1000, b = R(10, a/100-10)*100; ans = a-b; big = `${fmt(a)} − ? = ${fmt(b)}`; ex = `${L(op(a,'−',b)+' = '+fmt(ans))}`; }
+      else if (f===3){ const a = R(2,40)*50; ans = R(20,120)*50; big = `? + ${fmt(a)} = ${fmt(ans+a)}`; ex = `${L(op(ans+a,'−',a)+' = '+fmt(ans))}`; }
+      else if (f===4){ const a = R(2,9); ans = R(2,9); big = `? × ${a} = ${a*ans}`; ex = `${L(`${a*ans} : ${a} = ${ans}`)}`; }
+      else { const a = R(2,9); ans = R(2,9); big = `${a*ans} : ? = ${a}`; ex = `${L(`${a} × ${ans} = ${a*ans}`)}`; }
+      return mk('2.1',{text:'מה המספר החסר?', big, ans, sum:L(big), ex}); },
+    () => { if (Math.random()<.55){ const a = R(3,9), b = R(3,9), c = a*b, f = R(1,4);
+        const given = `נתון: ${L(`${a} × ${b} = ${c}`)}. פתרו בעזרתו:`;
+        const opts = [[`${b} × ${a} =`, c], [`${c} : ${a} =`, b], [`${c} : ${b} =`, a], [`${a} × ${b+1} =`, c+a]];
+        const [big, ans] = opts[f-1];
+        return mk('2.1',{text:given, big, ans, sum:L(big)}); }
+      const x = R(1100,4500), y = R(1100,4500), z = x+y;
+      const opts = [[op(x+100,'+',y)+' =', z+100], [op(z,'−',y)+' =', x], [op(x,'+',y+10)+' =', z+10], [op(z,'−',x)+' =', y]];
+      const [big, ans] = pick(opts);
+      return mk('2.1',{text:`נתון: ${L(op(x,'+',y)+' = '+fmt(z))}. פתרו בעזרתו:`, big, ans, sum:L(big)}); },
+    () => { let a, b, plus = Math.random()<.5, t;
+      if (plus){ const A = R(2,6), B = R(1,3); a = A*100 + R(-3,4); b = B*100 + R(-3,4); t = (A+B)*100; }
+      else { const A = R(5,10), B = R(1,4); a = A*100 + R(-3,4); b = B*100 + R(-3,3); t = (A-B)*100; }
+      const big = op(a, plus?'+':'−', b) + ' ≈ ?';
+      return mk('2.1',{kind:'choice', sym:true, text:'אומדן: בלי לחשב בדיוק, לאיזה מספר התשובה הכי קרובה?', big, ans:fmt(t), ch:[t-100,t,t+100].map(fmt), sum:L(op(a, plus?'+':'−', b)),
+        ex:`מעגלים: ${fmt(a)} קרוב ל-${fmt(Math.round(a/100)*100)} ו-${fmt(b)} קרוב ל-${fmt(Math.round(b/100)*100)}.`}); }
+  ],
+  '2.2': [
+    () => { const f = R(1,7); let e, ans, ex;
+      if (f===1){ const a=R(2,20), b=R(2,6), c=R(2,6); e=`${a} + ${b} × ${c}`; ans=a+b*c; ex=`קודם כפל: ${b} × ${c} = ${b*c}, ואז ${a} + ${b*c}`; }
+      else if (f===2){ const a=R(2,10), b=R(2,6), c=R(2,5); e=`(${a} + ${b}) × ${c}`; ans=(a+b)*c; ex=`קודם הסוגריים: ${a} + ${b} = ${a+b}, ואז × ${c}`; }
+      else if (f===3){ const c=R(2,5), k=R(2,6), b=c*k, a=R(k+2,30); e=`${a} − ${b} : ${c}`; ans=a-k; ex=`קודם חילוק: ${b} : ${c} = ${k}, ואז ${a} − ${k}`; }
+      else if (f===4){ const c=R(2,5), r=R(2,6), b=R(2,10), a=b+c*r; e=`(${a} − ${b}) : ${c}`; ans=r; ex=`קודם הסוגריים: ${a} − ${b} = ${a-b}, ואז : ${c}`; }
+      else if (f===5){ const a=R(2,6), b=R(2,6), c=R(2,6), d=R(2,6); e=`${a} × ${b} + ${c} × ${d}`; ans=a*b+c*d; ex=`קודם שני הכפלים: ${a*b} + ${c*d}`; }
+      else if (f===6){ const b=R(3,15), c=R(3,15), a=R(b+c+1,60); e=`${a} − (${b} + ${c})`; ans=a-b-c; ex=`קודם הסוגריים: ${b} + ${c} = ${b+c}`; }
+      else { const a=R(2,6), b=R(2,6), c=R(1,a*b-1); e=`${a} × ${b} − ${c}`; ans=a*b-c; ex=`קודם כפל: ${a} × ${b} = ${a*b}, ואז − ${c}`; }
+      return mk('2.2',{text:'חשבו לפי סדר פעולות החשבון:', big:e+' =', ans, sum:L(e), ex:L(ex)}); },
+    () => { const f = R(1,4); let right, wrong, res, base;
+      if (f===1){ let a,b,c; do { a=R(2,9); b=R(2,6); c=R(2,6); } while ((a+b)*c===a+b*c); base=`${a} + ${b} × ${c}`; res=(a+b)*c; right=`(${a} + ${b}) × ${c}`; wrong=`${a} + (${b} × ${c})`; }
+      else if (f===2){ const c=R(1,4), b=c+R(1,5), a=b+R(4,12); base=`${a} − ${b} − ${c}`; res=a-(b-c); right=`${a} − (${b} − ${c})`; wrong=`(${a} − ${b}) − ${c}`; }
+      else if (f===3){ const b=R(2,5), c=R(1,4), k=R(2,4), a=(b+c)*k; base=`${a} : ${b} + ${c}`; res=k; right=`${a} : (${b} + ${c})`; wrong=`(${a} : ${b}) + ${c}`; }
+      else { const a=R(2,6), b=R(2,5), c=R(2,9); base=`${a} × ${b} + ${c}`; res=a*(b+c); right=`${a} × (${b} + ${c})`; wrong=`(${a} × ${b}) + ${c}`; }
+      return mk('2.2',{kind:'choice', sym:true, long:true, text:'איפה שמים סוגריים כדי שהתרגיל יהיה נכון?', big:`${base} = ${res}`, ans:`${right} = ${res}`, ch:shuffle([`${right} = ${res}`, `${wrong} = ${res}`]),
+        sum:L(`${base} = ${res}`), ex:'מה שבסוגריים מחשבים קודם.'}); },
+    () => { const f = R(1,4); let e, val, alt;
+      if (f===1){ const a=R(2,9), b=R(2,5), c=R(2,5); e=`${a} + ${b} × ${c}`; val=a+b*c; alt=(a+b)*c; }
+      else if (f===2){ const a=R(2,9), b=R(2,5), c=R(2,5); e=`(${a} + ${b}) × ${c}`; val=(a+b)*c; alt=a+b*c; }
+      else if (f===3){ const c=R(2,3), k=R(2,4), b=c*k, a=b+R(2,8); e=`${a} − ${b} : ${c}`; val=a-k; alt=(a-b)/c; if (alt!==Math.floor(alt)) alt=val+2; }
+      else { const a=R(2,6), b=R(2,6), c=R(1,4); e=`${a} × ${b} − ${c}`; val=a*b-c; alt=a*(b-c); }
+      const truth = Math.random()<.5 || alt===val, shown = truth ? val : alt;
+      return mk('2.2',{kind:'choice', text:'נכון או לא נכון?', big:`${e} = ${shown}`, ans: truth ? 'נכון' : 'לא נכון', ch:TF, sum:L(`${e} = ${shown}`), ex:L(`${e} = ${val}`)}); },
+    () => { if (Math.random()<.5){ const n=R(2,5), p=R(3,8), q=R(2,6);
+        return mk('2.2',{text:`נועה קנתה ${n} מחברות ב-${p} ₪ כל אחת, ועט ב-${q} ₪. כמה שילמה בסך הכול?`, ans:n*p+q, unit:'₪', sum:'מחברות ועט', ex:L(`${n} × ${p} + ${q} = ${n*p+q}`)}); }
+      const k=R(2,3), p=R(3,7), M=R(Math.ceil(k*p/10)+1,5)*10;
+      return mk('2.2',{text:`לדני היו ${M} ₪. הוא קנה ${k} ארטיקים ב-${p} ₪ כל אחד. כמה כסף נשאר לו?`, ans:M-k*p, unit:'₪', sum:'דני והארטיקים', ex:L(`${M} − ${k} × ${p} = ${M-k*p}`)}); }
+  ],
+  '2.3': [
+    () => { const a = R(100,300)*10, b = R(10,90)*10;
+      return mk('2.3',{text:`בספרייה היו ${L(fmt(a))} ספרים. קנו עוד ${b} ספרים. כמה ספרים יש עכשיו בספרייה?`, ans:a+b, unit:'ספרים', sum:'ספרים בספרייה', ex:L(op(a,'+',b)+' = '+fmt(a+b))}); },
+    () => { const T = R(2,5)*1000 + R(0,9)*100, O = R(200, T/5-60)*5;
+      return mk('2.3',{text:`באולם יש ${L(fmt(T))} כיסאות. ${L(fmt(O))} כיסאות תפוסים. כמה כיסאות פנויים?`, ans:T-O, unit:'כיסאות', sum:'כיסאות פנויים', ex:L(op(T,'−',O)+' = '+fmt(T-O))}); },
+    () => { const k = R(3,9), n = R(3,9);
+      return mk('2.3',{text:`בכל קופסה יש ${k} עפרונות. כמה עפרונות יש ב-${n} קופסאות?`, ans:k*n, unit:'עפרונות', sum:'עפרונות בקופסאות', ex:L(`${n} × ${k} = ${k*n}`)}); },
+    () => { const g = R(2,6), e = R(3,9);
+      return mk('2.3',{text:`${g*e} תלמידים התחלקו ל-${g} קבוצות שוות. כמה תלמידים יש בכל קבוצה?`, ans:e, unit:'תלמידים', sum:'תלמידים בקבוצה', ex:L(`${g*e} : ${g} = ${e}`)}); },
+    () => { const p = R(3,6)*5, n = R(2,3);
+      if (Math.random()<.4) return mk('2.3',{text:`כרטיס לסרט עולה ${p} ₪. ${n===2?'שני':'שלושה'} ילדים קנו כרטיסים. כמה עלו כל הכרטיסים?`, ans:n*p, unit:'₪', sum:'כרטיסים לסרט', ex:L(`${n} × ${p} = ${n*p}`)});
+      return mk('2.3',{text:`כרטיס לסרט עולה ${p} ₪. ${n===2?'שני':'שלושה'} ילדים קנו כרטיסים ושילמו בשטר של 100 ₪. כמה עודף קיבלו?`, ans:100-n*p, unit:'₪', sum:'עודף מ-100 ₪', ex:L(`${n} × ${p} = ${n*p}, 100 − ${n*p} = ${100-n*p}`)}); },
+    () => { const a = R(20,60), m = R(10,25);
+      if (Math.random()<.5) return mk('2.3',{text:`לדנה יש ${a} מדבקות. לאחותה יש ${m} מדבקות יותר מלדנה. כמה מדבקות יש לאחותה?`, ans:a+m, unit:'מדבקות', sum:'המדבקות של האחות', ex:L(`${a} + ${m} = ${a+m}`)});
+      return mk('2.3',{text:`לדנה יש ${a} מדבקות. לאחותה יש ${m} מדבקות יותר מלדנה. כמה מדבקות יש לשתיהן יחד?`, ans:2*a+m, unit:'מדבקות', sum:'מדבקות לשתיהן יחד', ex:L(`${a} + ${m} = ${a+m}, ${a} + ${a+m} = ${2*a+m}`)}); },
+    () => { const r = R(3,7), c = R(4,8), s = R(5, r*c-5);
+      return mk('2.3',{text:`על מדף יש ${r} שורות, ובכל שורה ${c} צנצנות. מכרו ${s} צנצנות. כמה צנצנות נשארו?`, ans:r*c-s, unit:'צנצנות', sum:'צנצנות על המדף', ex:L(`${r} × ${c} = ${r*c}, ${r*c} − ${s} = ${r*c-s}`)}); },
+    () => { const t = R(18,30), g = R(8, t-6);
+      return mk('2.3',{text:`בגן יש ${t} ילדים. ${g} מהם בנות. כמה בנים יש בגן?`, ans:t-g, unit:'בנים', sum:'בנים בגן', ex:L(`${t} − ${g} = ${t-g}`)}); }
+  ],
+  '3.1': [
+    () => { const type = pick(ANGLE_CH), deg = type==='חדה' ? R(25,65) : type==='ישרה' ? 90 : R(112,155), rot = R(-25,30);
+      return mk('3.1',{kind:'choice', text:'איזו זווית בציור?', vis:svgAngle(deg,rot), ans:type, ch:ANGLE_CH, sum:'זווית בציור', ex:ANGLE_EX[type] + ' אפשר לבדוק עם פינה של דף.'}); },
+    () => { const H = pick([1,2,3,4,5,7,8,9,10,11]), deg = Math.min(H*30, 360-H*30), type = angleType(deg);
+      return mk('3.1',{kind:'choice', text:`איזו זווית יוצרים מחוגי השעון בשעה ${L(H+':00')}?`, vis:svgClock(H), ans:type, ch:ANGLE_CH, sum:`שעון ב-${L(H+':00')}`, ex:ANGLE_EX[type]}); },
+    () => { const s = pick([['פינה של דף היא זווית ישרה.','נכון'],['זווית קהה קטנה מזווית ישרה.','לא נכון'],['במלבן יש 4 זוויות ישרות.','נכון'],
+        ['זווית חדה קטנה מזווית ישרה.','נכון'],['זווית חדה גדולה מזווית ישרה.','לא נכון'],['זווית קהה גדולה מזווית ישרה.','נכון'],['בריבוע יש 4 זוויות ישרות.','נכון'],
+        ['בשעה 3:00 מחוגי השעון יוצרים זווית חדה.','לא נכון']]);
+      return mk('3.1',{kind:'choice', text:'נכון או לא נכון?', words:s[0], ans:s[1], ch:TF, sum:s[0], ex:'חדה < ישרה < קהה. זווית ישרה היא כמו פינה של דף.'}); }
+  ],
+  '3.2': [
+    () => { const a = Math.random()<.7 ? R(1,4) : 0, len = R(2, 10-a);
+      return mk('3.2',{text:'מה אורך הפס? שימו לב מאיפה הוא מתחיל!', vis:svgRuler(a,a+len), ans:len, unit:CM, sum:`פס מ-${a} עד ${a+len} בסרגל`, ex:`הפס מתחיל ב-${a} ונגמר ב-${a+len}: ${L(`${a+len} − ${a} = ${len}`)}`}); },
+    () => { const f = R(1,4); let q, ans, unit;
+      if (f===1){ const m = R(1,5); q = `${m1(m)} = ? ${CM}`; ans = m*100; unit = CM; }
+      else if (f===2){ const m = R(2,5); q = `${m*100} ${CM} = ? מטרים`; ans = m; unit = 'מטרים'; }
+      else if (f===3){ const x = R(1,9)*10; q = `מטר אחד ו-${x} ${CM} = ? ${CM}`; ans = 100+x; unit = CM; }
+      else { const m = R(2,3), x = R(1,9)*5; q = `${m} מטרים ו-${x} ${CM} = ? ${CM}`; ans = m*100+x; unit = CM; }
+      return mk('3.2',{text:'השלימו:', words:q, ans, unit, sum:q, ex:`מטר אחד = 100 ${CM}.`}); },
+    () => { const m = R(1,4), c = m*100 + pick([-10,-50,0,0,50,20,-20]);
+      let A = m1(m), B = `${c} ${CM}`, a = m*100, b = c;
+      if (Math.random()<.5){ [A,B] = [B,A]; [a,b] = [b,a]; }
+      return mk('3.2',{kind:'choice', sym:true, text:'איזה סימן מתאים: &lt;, &gt; או =?', words:`${A} ◯ ${B}`, ans:sign(a,b), ch:['<','=','>'], sum:`${A} ◯ ${B}`, ex:`${m1(m)} = ${m*100} ${CM}.`}); },
+    () => { const s = pick([['אורך של עיפרון',CM],['אורך של כיתה','מטר'],['גובה של עץ','מטר'],['רוחב של מחק',CM],['אורך של מגרש כדורגל','מטר'],['אורך של מחברת',CM],['אורך של בריכה','מטר'],['אורך של אצבע',CM],['גובה של בניין','מטר']]);
+      return mk('3.2',{kind:'choice', text:'באיזו יחידה נוח למדוד?', words:s[0], ans:s[1], ch:[CM,'מטר'], sum:s[0], ex:`דברים קצרים מודדים ב${CM}, ודברים ארוכים במטרים.`}); },
+    () => { const s = pick([['אורך של עיפרון',`15 ${CM}`,'15 מטרים'],['גובה של דלת','2 מטרים',`20 ${CM}`],['אורך של אצבע',`6 ${CM}`,`60 ${CM}`],
+        ['אורך של כיתה','8 מטרים',`8 ${CM}`],['גובה של ילד בכיתה ג׳',`130 ${CM}`,`13 ${CM}`],['אורך של ספר',`25 ${CM}`,'25 מטרים']]);
+      return mk('3.2',{kind:'choice', text:'מה האורך המתאים?', words:s[0], ans:s[1], ch:shuffle([s[1],s[2]]), sum:s[0], ex:'דמיינו את הדבר ובדקו: האם זה הגיוני?'}); },
+    () => { const f = R(1,3);
+      if (f===1){ const Lr = R(6,10)*10, c = R(15, Lr-10);
+        return mk('3.2',{text:`לדני יש סרט באורך ${Lr} ${CM}. הוא גזר ממנו ${c} ${CM}. מה אורך הסרט שנשאר?`, ans:Lr-c, unit:CM, sum:'הסרט של דני', ex:L(`${Lr} − ${c} = ${Lr-c}`)}); }
+      const h = R(120,140), d = R(5,20), tall = f===3;
+      return mk('3.2',{text:`הגובה של רון ${h} ${CM}. ${tall?'אחיו גבוה':'אחותו נמוכה'} ממנו ב-${d} ${CM}. מה הגובה של ${tall?'אחיו':'אחותו'}?`, ans: tall ? h+d : h-d, unit:CM, sum:`הגובה של ${tall?'האח':'האחות'}`, ex:L(`${h} ${tall?'+':'−'} ${d} = ${tall?h+d:h-d}`)}); }
+  ]
+};
+
+/* ★ challenge questions, like the starred ones in the booklet; they also power the golden brick */
+const STAR = {
+  '1.1': [ () => { let ds; do { ds = shuffle([0,1,2,3,4,5,6,7,8,9]).slice(0,4); } while (!ds.includes(0) && Math.random()<.6);
+      const big = +ds.slice().sort((x,y)=>y-x).join('');
+      const asc = ds.slice().sort((x,y)=>x-y); if (asc[0]===0){ const i = asc.findIndex(x=>x>0); [asc[0],asc[i]] = [asc[i],asc[0]]; }
+      const small = +asc.join('');
+      const nz = ds.filter(x=>x>0 && x!==asc[0]), d = nz.length ? pick(nz) : asc[0], rest = ds.filter(x=>x!==d).sort((x,y)=>x-y), sd = +[d,...rest].join('');
+      const w = R(0,2), what = ['הגדול ביותר','הקטן ביותר',`הקטן ביותר שמתחיל בספרה ${d}`][w];
+      return mk('1.1',{star:true, text:`השתמשו בכל הספרות ${L(ds.join(', '))}, כל ספרה פעם אחת. מהו המספר ${what}?`, ans:[big,small,sd][w], sum:`${what} מ-${L(ds.join(', '))}`,
+        ex:['מסדרים מהספרה הגדולה לקטנה.','מתחילים בספרה הקטנה ביותר שאינה 0, ואז מהקטנה לגדולה.',`אחרי ה-${d} מסדרים מהקטנה לגדולה.`][w]}); } ],
+  '1.2': [
+    () => { const t = R(1,6), k = R(1,3), ans = t*1000 + (t+k)*100 + t;
+      return mk('1.2',{star:true, text:`חידה: אני מספר בן 4 ספרות. ספרת האלפים שלי היא ${t}. ספרת המאות גדולה ממנה ב-${k}. ספרת העשרות היא 0, וספרת היחידות שווה לספרת האלפים. מי אני?`, ans, sum:'חידת מי אני', ex:`אלפים ${t}, מאות ${t+k}, עשרות 0, יחידות ${t}.`}); },
+    () => { const a = R(2,8), b = R(11,19), ws = `${a} אלפים + ${b} עשרות`;
+      return mk('1.2',{star:true, text:'כתבו כמספר:', words:ws, ans:a*1000+b*10, sum:ws, ex:`${b} עשרות = ${b*10}`}); } ],
+  '1.3': [
+    () => { const s = R(1,3), big = [s,2*s,4*s,8*s].join(', ') + ', ?';
+      return mk('1.3',{star:true, text:'המשיכו את הסדרה:', big, ans:16*s, sum:L(big), ex:'כל מספר גדול פי 2 מהקודם.'}); },
+    () => { const x = Math.random()<.5 ? R(5,19)*5 : R(21,99);
+      return mk('1.3',{star:true, kind:'choice', text:`האם המספר ${x} נמצא בסדרה ${L('5, 10, 15, 20, ...')}?`, ans: x%5===0 ? 'כן' : 'לא', ch:['כן','לא'], sum:`${x} בסדרה של 5`, ex:'כל המספרים בסדרה מסתיימים ב-0 או ב-5.'}); },
+    () => { const s = pick([1000,500,2000]), d = pick([250,50,500]);
+      return mk('1.3',{star:true, text:`סדרה מתחילה ב-${L(fmt(s))} ועולה כל פעם ב-${d}. מהו האיבר החמישי?`, ans:s+4*d, sum:`מ-${L(fmt(s))} בקפיצות של ${d}`, ex:L([0,1,2,3,4].map(i=>fmt(s+i*d)).join(', '))}); } ],
+  '1.4': [
+    () => { const [s,e] = pick([[300,500],[0,200],[500,1000],[1000,1500]]), n = 10, k = R(1,9), step = (e-s)/n;
+      return mk('1.4',{star:true, text:'כמה שווה כל קפיצה? לאיזה מספר מצביע החץ?', vis:svgLine(s,e,n,k), ans:s+k*step, sum:`ישר מספרים ${L(fmt(s)+' – '+fmt(e))}`, ex:`${fmt(e-s)} מחולק ל-10 קפיצות: כל קפיצה ${step}.`}); } ],
+  '2.1': [
+    () => { const a = R(3,9), b = R(3,9), z = pick([10,100]);
+      return mk('2.1',{star:true, text:`נתון: ${L(`${a} × ${b} = ${a*b}`)}. פתרו בלי לחשב מההתחלה:`, big:`${a*z} × ${b} =`, ans:a*b*z, sum:L(`${a*z} × ${b}`), ex:`${a*z} גדול פי ${z} מ-${a}, אז גם התשובה גדולה פי ${z}.`}); } ],
+  '2.2': [
+    () => { const opts = [['(1 + 2) × 3',9],['1 + 2 × 3',7],['1 × 2 + 3',5]], [ans, t] = pick(opts);
+      return mk('2.2',{star:true, kind:'choice', sym:true, text:`איזה תרגיל עם המספרים 1, 2, 3 שווה ${t}?`, ans, ch:shuffle(opts.map(o=>o[0])), sum:`תרגיל ששווה ${t}`, ex:L(`${ans} = ${t}`)}); } ],
+  '2.3': [
+    () => { const small = R(5,20), d = R(1,6)*2, big = small+d, S = small+big;
+      const c = `${big} ו-${small}`, w1 = `${S/2} ו-${S/2}`, w2 = `${big+d} ו-${small-d}`;
+      return mk('2.3',{star:true, kind:'choice', text:`הסכום של שני מספרים הוא ${S}. מספר אחד גדול מהשני ב-${d}. מהם שני המספרים?`, ans:c, ch:shuffle([c, w1, small-d>0 ? w2 : `${big+1} ו-${small-1}`]), sum:`סכום ${S}, הפרש ${d}`, ex:L(`${big} + ${small} = ${S}, ${big} − ${small} = ${d}`)}); } ],
+  '3.1': [
+    () => { const s = pick(['ריבוע','מלבן']);
+      return mk('3.1',{star:true, text:`כמה זוויות ישרות יש ב${s}?`, ans:4, sum:`זוויות ישרות ב${s}`, ex:`בכל פינה של ${s} יש זווית ישרה.`}); } ],
+  '3.2': [
+    () => { const [m,p] = pick([[2,4],[1,4],[3,4],[1,5],[2,5],[3,5],[1,2],[3,2]]), ans = m*100/p;
+      return mk('3.2',{star:true, text:`חבל באורך ${m1(m)} נחתך ל-${p} חלקים שווים. מה האורך של כל חלק ב${CM}?`, ans, unit:CM, sum:`חבל של ${m1(m)} ל-${p} חלקים`, ex:L(`${m} × 100 = ${m*100}, ${m*100} : ${p} = ${ans}`)}); } ]
+};
+
+const keyOf = q => q.t + '|' + (q.sum||'') + '|' + (q.big||'') + '|' + (q.words||'') + '|' + (q.vis ? q.vis.length+':'+q.ans : '') + (q.vert ? q.vert.a+q.vert.op+q.vert.b : '');
+function genQ(t, star){
+  const fam = star && STAR[t] ? STAR[t] : GEN[t];
+  const q = pick(fam)();
+  q.key = keyOf(q);
+  return q;
+}
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+/* ---------- storage ---------- */
+const KEY = 'mamlechet-hamisparim-v1';
+let save = { topics:{}, coins:0, best:null, muted:false, mush:0, beat:{}, tickets:0, outfit:'classic', outfits:['classic'], wrong:[] };
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) save = Object.assign(save, s); } catch(e){}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch(e){} };
+// topic mastery from the last answers in that topic: 0 not yet, 1 needs practice, 2 almost, 3 mastered
+const level = t => {
+  const a = save.topics[t] || []; if (a.length < 3) return 0;
+  const r = a.slice(-8), acc = r.filter(Boolean).length / r.length;
+  if (acc >= .85 && a.length >= 5) return 3;
+  return acc >= .6 ? 2 : 1;
+};
+const LV_TXT = ['עוד לא תרגלנו','צריך עוד תרגול','כמעט','אני שולט!'];
+function record(q, ok){
+  const a = save.topics[q.t] || []; a.push(ok ? 1 : 0); if (a.length > 12) a.shift(); save.topics[q.t] = a;
+  const i = save.wrong.findIndex(w=>w.key===q.key);
+  if (ok){ if (i >= 0) save.wrong.splice(i,1); }
+  else if (i < 0){ const c = Object.assign({}, q); delete c.golden; save.wrong.push(c); if (save.wrong.length > 30) save.wrong.shift(); }
+  persist();
+}
+
+/* ---------- sound ---------- */
+let ac = null;
+const ensureAudio = () => { if (!ac) { try { ac = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} } if (ac && ac.state==='suspended') ac.resume(); };
+const tone = (f, t0, dur, type='square', vol=.07) => {
+  if (!ac || save.muted) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.value = f; g.gain.setValueAtTime(vol, ac.currentTime+t0);
+  g.gain.exponentialRampToValueAtTime(.0001, ac.currentTime+t0+dur);
+  o.connect(g).connect(ac.destination); o.start(ac.currentTime+t0); o.stop(ac.currentTime+t0+dur+.02);
+};
+const sweep = (f1, f2, dur, type='square', vol=.05) => {
+  if (!ac || save.muted) return; const o=ac.createOscillator(), g=ac.createGain(); o.type=type;
+  o.frequency.setValueAtTime(f1,ac.currentTime); o.frequency.exponentialRampToValueAtTime(f2,ac.currentTime+dur);
+  g.gain.setValueAtTime(vol,ac.currentTime); g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+dur+.03);
+  o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime+dur+.05);
+};
+const sfx = {
+  jump(){ sweep(300,700,.15); },
+  coin(){ tone(988,0,.08); tone(1319,.08,.3); },
+  bad(){ tone(220,0,.15,'sawtooth',.05); tone(165,.15,.3,'sawtooth',.05); },
+  tap(){ tone(660,0,.03,'square',.025); },
+  win(){ [523,659,784,1047,784,1047].forEach((f,i)=>tone(f,i*.11,.16)); },
+  roar(){ sweep(180,60,.6,'sawtooth',.07); tone(98,.1,.5,'square',.04); },
+  shoot(){ sweep(900,1600,.12,'square',.04); },
+  hit(){ sweep(400,90,.25,'square',.06); },
+  fire(){ sweep(500,120,.35,'sawtooth',.05); },
+  power(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f,i*.06,.1,'square',.05)); },
+  mega(){ sweep(200,1800,.5,'square',.06); [1047,1319,1568,2093].forEach((f,i)=>tone(f,.35+i*.08,.18)); },
+  buy(){ tone(784,0,.07); tone(988,.07,.07); tone(1319,.14,.25); },
+  shield(){ sweep(1200,300,.3,'triangle',.08); },
+  crunch(){ tone(110,0,.12,'sawtooth',.08); tone(82,.1,.25,'sawtooth',.07); },
+  wave(){ [392,523,659].forEach((f,i)=>tone(f,i*.12,.14)); },
+  lose(){ [392,330,262,196].forEach((f,i)=>tone(f,i*.2,.25,'triangle',.07)); },
+  boom(){ [196,165,131,98].forEach((f,i)=>tone(f,i*.12,.25,'sawtooth',.06)); setTimeout(()=>sfx.win(),600); }
+};
+
+/* ---------- sprites ---------- */
+const cv = $('stage'), ctx = cv.getContext('2d');
+const W = 256, H = 144, GROUND = 124, HERO_X = 118, GAP = 112, BLOCK_Y = 56, CASTLE_EDGE = 46;
+ctx.imageSmoothingEnabled = false;
+const norm = rows => { const w = Math.max(...rows.map(r=>r.length)); return rows.map(r=>r.padEnd(w,'.')); };
+
+const PAL = { H:'#1aa39a', h:'#0e6e68', S:'#ffc89a', E:'#1c1838', O:'#ff7a2f', B:'#7a4a22', P:'#2f3f9e', K:'#3a2412', W:'#ffffff' };
+const OUTFITS = {
+  classic:{ name:'קלאסי', price:0, pal:{} },
+  fire:   { name:'גיבור האש', price:20, pal:{ H:'#e83a3a', h:'#9a1a1a', O:'#f4f0ff', P:'#c82a2a' } },
+  night:  { name:'נינג׳ה הלילה', price:35, pal:{ H:'#2a2050', h:'#120c30', O:'#6a3ab8', P:'#1c1838', B:'#3a2a6a' } },
+  gold:   { name:'אביר הזהב', price:60, pal:{ H:'#ffc83d', h:'#c97a00', O:'#ffe14a', P:'#c97a00', B:'#8a5a00' } }
+};
+const heroPal = id => Object.assign({}, PAL, (OUTFITS[id||save.outfit]||OUTFITS.classic).pal);
+const HERO_TOP = [
+  "...hHHHh...",
+  "..HHHHHHH..",
+  ".hHHHHHHHHh",
+  "..SSSSSSS..",
+  "..SEWSEWS..",
+  "..SSSSSSS..",
+  "...SSSSS...",
+  ".BBOOOOOO..",
+  ".BBOOOOOOS.",
+  ".BBOOOOOOS."
+];
+const LEGS_STAND = ["..PPPPPP...", "..PP..PP...", "..PP..PP...", ".KKK..KKK.."];
+const LEGS_RUN_A = ["..PPPPPP...", ".PP....PP..", "KK......KK.", "..........."];
+const LEGS_RUN_B = ["..PPPPPP...", "...PPPP....", "...PPPP....", "..KKKKKK..."];
+const LEGS_JUMP  = ["..PPPPPP...", ".PP...PP...", "KK....PP...", "......KKK.."];
+
+const GOLEM = norm([
+  "......dddddddd......",
+  "....ddRRRRRRRRdd....",
+  "...dRRRRRRRRRRRRd...",
+  "..dRRRdRRRRRRdRRRd..",
+  "..dRRYYdRRRRdYYRRd..",
+  "..dRRYYRRRRRRYYRRd..",
+  "..dRRRRRRRRRRRRRRd..",
+  "..dRRMMMMMMMMMMRRd..",
+  "..dRRMLMLMLMLMMRRd..",
+  "...dRRRRRRRRRRRRd...",
+  ".ddddRRLLRRLLRRdddd.",
+  "dRRRRRRRLLLLRRRRRRRd",
+  "dRRdRRRRRLLRRRRRdRRd",
+  "dRRdRRRRRRRRRRRRdRRd",
+  "dRRdRRRLRRRRLRRRdRRd",
+  "dLLdRRRRRRRRRRRRdLLd",
+  ".dd.dRRRRRRRRRRd.dd.",
+  "....dRRRRddRRRRd....",
+  "....dRRRd..dRRRd....",
+  "....dRRRd..dRRRd....",
+  "...dLLLLd..dLLLLd...",
+  "...dddddd..dddddd..."
+]);
+const YETI = norm([
+  "..d..............d..",
+  ".dWd...dddddd...dWd.",
+  ".dWWdddFFFFFFdddWWd.",
+  "..dWFFFFFFFFFFFFWd..",
+  "..dFFFFFFFFFFFFFFd..",
+  "..dFFBBBFFFFBBBFFd..",
+  "..dFFBYBFFFFBYBFFd..",
+  "..dFFFFFFFFFFFFFFd..",
+  "..dFFFMMMMMMMMFFFd..",
+  "..dFFFMWMWWMWMFFFd..",
+  "...dFFFFFFFFFFFFd...",
+  ".ddFFFFFFFFFFFFFFdd.",
+  "dFFFFFFFLLLLFFFFFFFd",
+  "dFFdFFFLLLLLLFFFdFFd",
+  "dFFdFFFLLLLLLFFFdFFd",
+  "dFFdFFFFLLLLFFFFdFFd",
+  "dWWdFFFFFFFFFFFFdWWd",
+  ".dd.dFFFFFFFFFFd.dd.",
+  "....dFFFFddFFFFd....",
+  "....dFFFd..dFFFd....",
+  "...dWWWWd..dWWWWd...",
+  "...dddddd..dddddd..."
+]);
+const DRAGON = norm([
+  "..............dd....dd..",
+  ".............dPPd..dPPd.",
+  "..ddddd.......dGGddGGd..",
+  ".dGGGGGd......dGGGGGGd..",
+  "dGGYdGGGd....dGGGGGGGGd.",
+  "dGGddGGGGddddGGGGGGGGGGd",
+  "dGGGGGGGGGGGGGGGGgGGGGGd",
+  "dMWMWMGGGGGGGGGGgGGGGGd.",
+  ".dMMMMdGGGGLLLLGGgGGGd..",
+  "..dddd.dGGLLLLLLGGGGd...",
+  ".......dGGLLLLLLGGGGGd..",
+  "......dGGGLLLLLLGGGGGGd.",
+  "......dGGGGLLLLGGGGGGGGd",
+  ".....dGGdGGGGGGGGdGGGPPd",
+  "....dPPd.dGGGGGGd.dGPPd.",
+  "....ddd..dGGddGGd..ddd..",
+  ".........dGGd.dGGd......",
+  "........dPPPd.dPPPd.....",
+  "........ddddd.ddddd....."
+]);
+const MUSH = ["..cccc..",".cCyCCc.","cCCCCyCc","cyCCCCCc","cccccccc","..swws..","..swws..","..ssss.."];
+const MPAL = { c:'#0a5a6a', C:'#2ad4c8', y:'#ffd84a', w:'#fff4d6', s:'#c9b48a' };
+const GOLDBLK = ["dddddddddd","dYYYYYYYYd","dYxYYYYxYd","dYYxYYxYYd","dYYYxxYYYd","dYYYxxYYYd","dYYxYYxYYd","dYxYYYYxYd","dYYYYYYYYd","dddddddddd"];
+const GPAL = { d:'#7a3c00', Y:'#ffc83d', x:'#fff6dc' };
+
+function drawSprite(rows, x, y, s, pal=PAL, c=ctx){
+  for (let r=0;r<rows.length;r++) for (let col=0;col<rows[r].length;col++){
+    const ch = rows[r][col]; if (ch==='.') continue;
+    c.fillStyle = pal[ch]; c.fillRect(Math.round(x+col*s), Math.round(y+r*s), s, s);
+  }
+}
+function paintIcon(canvas, rows, pal){
+  const c = canvas.getContext('2d'); c.imageSmoothingEnabled = false;
+  canvas.width = rows[0].length; canvas.height = rows.length;
+  c.clearRect(0,0,canvas.width,canvas.height); drawSprite(rows,0,0,1,pal,c);
+}
+const SIL = new Proxy({}, { get: () => '#3a3470' });
+
+/* ---------- worlds & bosses ---------- */
+const DAY = ['#6aa2ff','#74a9ff','#7fb1ff','#8cb9ff','#9cc4ff'];
+const BOSSES = [
+  { id:'golem', ch:1, name:'גולם הלבה', short:'הגולם', hp:4, reward:10, rows:GOLEM, shot:'fire',
+    sky:['#2a1d52','#43245e','#62295f','#8a3458','#b0464e'], hills:['#4a2f5e','#5a3a6a','#24142e','#6a3a5a','#2a1430'], weather:null,
+    pal:(b,t)=>({ d:'#2a1830', R: b.flash>0?'#e8d8ff':'#6e5a86', Y: b.flash>0?'#ffffff':(b.dead?'#3a2a4a':'#ffe14a'), M:'#1c0f22', L: b.dead?'#5a3a3a':(Math.floor(t/8)%2?'#ff6a2a':'#ffa53a') }) },
+  { id:'yeti', ch:2, name:'ענק הקרח', short:'הענק', hp:5, reward:15, rows:YETI, shot:'ice',
+    sky:['#1a3a5a','#2a5070','#3a6a8a','#5a8aaa','#8ab8d0'], hills:['#c8dcef','#e0ecf8','#5a7a9a','#e8f4ff','#6a8aaa'], weather:'snow',
+    pal:(b,t)=>({ d:'#14284a', F: b.flash>0?'#ffffff':'#dceeff', L:'#a8cce8', W: Math.floor(t/10)%2?'#5ad8ff':'#9ae8ff', B:'#2a4a7a', Y: b.dead?'#2a4a7a':'#ff4a7a', M:'#14284a' }) },
+  { id:'dragon', ch:3, name:'דרקון הסערה', short:'הדרקון', hp:6, reward:25, rows:DRAGON, shot:'bolt',
+    sky:['#140a2a','#1e1040','#2a1652','#3a1e66','#4a2a7a'], hills:['#2a1e4a','#34265a','#0e0820','#3a2a5a','#140c28'], weather:'rain',
+    pal:(b,t)=>({ d:'#140a24', G: b.flash>0?'#f0e0ff':'#7a4ac8', g:'#5a2e9a', L:'#ffd84a', P: Math.floor(t/7)%2?'#ff5ad8':'#ffa0ec', Y: b.dead?'#3a2a4a':'#ffffff', M:'#2a0e3a', W:'#ffffff' }) }
+];
+const bossById = id => BOSSES.find(b=>b.id===id);
+
+/* ---------- stage drawing ---------- */
+function dome(cx, baseY, r, fill, edge){
+  for (let dy=0; dy<=r; dy++){ const hw = Math.floor(Math.sqrt(r*r - dy*dy)); ctx.fillStyle = edge; ctx.fillRect(Math.round(cx-hw-1), baseY-dy-1, hw*2+2, 1); }
+  for (let dy=0; dy<r; dy++){ const hw = Math.floor(Math.sqrt(r*r - dy*dy))-1; ctx.fillStyle = fill; ctx.fillRect(Math.round(cx-hw), baseY-dy-1, hw*2, 1); }
+}
+function cloud(x,y,c){ ctx.fillStyle=c; ctx.fillRect(x+4,y+4,28,8); ctx.fillRect(x,y+8,36,6); ctx.fillRect(x+8,y,12,6); ctx.fillRect(x+18,y+2,10,4); }
+function block(x, y, used){
+  ctx.fillStyle = '#120f26'; ctx.fillRect(x-1,y-1,22,22);
+  if (used){
+    ctx.fillStyle='#8a6a52'; ctx.fillRect(x,y,20,20); ctx.fillStyle='#6a4e3a'; ctx.fillRect(x,y+17,20,3); ctx.fillRect(x+17,y,3,20);
+    ctx.fillStyle='#b08a6a'; ctx.fillRect(x,y,20,2); ctx.fillRect(x,y,2,20);
+  } else {
+    ctx.fillStyle='#ffb22e'; ctx.fillRect(x,y,20,20); ctx.fillStyle='#c97a00'; ctx.fillRect(x,y+17,20,3); ctx.fillRect(x+17,y,3,20);
+    ctx.fillStyle='#ffe08a'; ctx.fillRect(x,y,20,2); ctx.fillRect(x,y,2,20);
+    ctx.fillStyle='#7a3c00'; [[3,3],[14,3],[3,14],[14,14]].forEach(([a,b])=>ctx.fillRect(x+a,y+b,2,2));
+    ctx.fillStyle='#fff6dc';
+    for (let i=0;i<7;i++){ ctx.fillRect(x+6+i,y+6+i,2,2); ctx.fillRect(x+12-i,y+6+i,2,2); }
+  }
+}
+function brickRow(off){
+  for (let i=-1;i<W/16+2;i++){
+    const x = Math.floor(i*16 - (off%16));
+    for (let r=0;r<2;r++){
+      const y = GROUND + r*12;
+      ctx.fillStyle='#c4581d'; ctx.fillRect(x,y,16,12);
+      ctx.fillStyle='#e8874a'; ctx.fillRect(x,y,16,1);
+      ctx.fillStyle='#5a2208'; ctx.fillRect(x,y+11,16,1); ctx.fillRect(x+15,y,1,12);
+      ctx.fillRect(x+(r?3:11),y+5,1,6); ctx.fillRect(x,y+5,16,1);
+    }
+  }
+  ctx.fillStyle='#3ccf5c'; ctx.fillRect(0,GROUND-2,W,3); ctx.fillStyle='#1f8a38'; ctx.fillRect(0,GROUND+1,W,1);
+}
+const hex = c => [1,3,5].map(i=>parseInt(c.slice(i,i+2),16));
+const mix = (a,b,t) => { const A=hex(a),B=hex(b); return 'rgb('+A.map((v,i)=>Math.round(v+(B[i]-v)*t)).join(',')+')'; };
+
+const st = {
+  scroll:0, target:0, hero:{y:GROUND-28, vy:0, ground:true, flash:0, run:0}, heroX:HERO_X, heroGround:GROUND-28,
+  used:{}, bump:{}, shake:{}, coins:[], pops:[], sparks:[], proj:[], hitPending:false, idx:0, t:0, items:[], mushNext:false,
+  dusk:0, bossMode:false, blockLimit:Infinity, boss:null, sky:BOSSES[0].sky, hills:BOSSES[0].hills, weather:null
+};
+
+function drawBoss(){
+  const b = st.boss; if (!b) return;
+  const d = b.def, pal = d.pal(b, st.t);
+  const shake = b.shake>0 ? Math.round(Math.sin(st.t*2.2)*2) : 0;
+  const breathe = b.dead ? 0 : Math.floor(st.t/24)%2;
+  const x = Math.round(b.x - b.lunge + shake), y = GROUND - d.rows.length*3 + breathe + Math.round(b.sink);
+  drawSprite(d.rows, x, y, 3, pal);
+  if (!b.dead){
+    const bw = Math.max(48, b.max*10), bx = x + Math.round((d.rows[0].length*3 - bw)/2), by = y - 10;
+    ctx.fillStyle='#120f26'; ctx.fillRect(bx-2,by-2,bw+4,8);
+    const sw = (bw - (b.max-1)*2)/b.max;
+    for (let i=0;i<b.max;i++){ ctx.fillStyle = i < b.hp ? '#ef5a46' : '#3a2a4a'; ctx.fillRect(Math.round(bx + i*(sw+2)), by, Math.round(sw), 4); }
+  }
+}
+function drawWeather(){
+  if (!st.weather || st.dusk < .25) return;
+  for (let i=0;i<44;i++){
+    if (st.weather==='snow'){
+      const x = ((i*67 + st.t*.25*(1+i%3)) % W + W) % W, y = (i*41 + st.t*(.4+(i%4)*.2)) % GROUND;
+      ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(x|0, y|0, 2, 2);
+    } else {
+      const x = ((i*67 - st.t*1.2) % W + W) % W, y = (i*41 + st.t*4) % GROUND;
+      ctx.fillStyle = 'rgba(200,180,255,.55)'; ctx.fillRect(x|0, y|0, 1, 5);
+    }
+  }
+  if (st.weather==='rain' && Math.floor(st.t) % 420 < 5){ ctx.fillStyle='rgba(255,255,255,.22)'; ctx.fillRect(0,0,W,H); }
+}
+
+function draw(){
+  const d = st.dusk, P = st.sky, HL = st.hills;
+  for (let i=0;i<4;i++){ ctx.fillStyle = mix(DAY[i],P[i],d); ctx.fillRect(0, i*30, W, 31); }
+  ctx.fillStyle = mix(DAY[4],P[4],d); ctx.fillRect(0,120,W,24);
+  const s = st.scroll;
+  const cc = mix('#ffffff','#c9a0c8',d);
+  for (let k=-1;k<5;k++){ const x = k*90 - (s*.2 % 90) + ((k*37)%20); cloud(Math.round(x), 14 + (Math.abs(k*13)%18), cc); }
+  const h1 = mix('#4cae5a',HL[0],d), h2 = mix('#5cbf68',HL[1],d), he = mix('#1f6b34',HL[2],d);
+  for (let k=-1;k<4;k++){ const x = k*150 - (s*.45 % 150); dome(x+60, GROUND, 38, h1, he); dome(x+120, GROUND, 22, h2, he); }
+  const bu = mix('#3ccf5c',HL[3],d), be = mix('#167a30',HL[4],d);
+  for (let k=-1;k<4;k++){ const x = k*130 - (s % 130); dome(x+30, GROUND, 9, bu, be); dome(x+42, GROUND, 11, bu, be); dome(x+54, GROUND, 8, bu, be); }
+  {
+    drawBoss();
+    brickRow(s);
+    const first = Math.max(0, Math.floor((s-HERO_X)/GAP)-1);
+    for (let n=first; n<first+5; n++){
+      if (n > st.blockLimit) continue;
+      const bx = HERO_X + n*GAP - s;
+      if (bx < -30 || bx > W+10) continue;
+      const by = BLOCK_Y - (st.bump[n]||0);
+      const sh = st.shake[n] ? Math.round(Math.sin(st.t*1.6)*2) : 0;
+      block(Math.round(bx-4+sh), Math.round(by), st.used[n]);
+    }
+  }
+  drawWeather();
+  st.coins.forEach(c=>{ const x=Math.round(c.x - s), y=Math.round(c.y); const w = [6,4,2,4][Math.floor(c.life*14)%4];
+    ctx.fillStyle='#c97a00'; ctx.fillRect(x+6-w/2-1,y-1,w+2,12); ctx.fillStyle='#ffc83d'; ctx.fillRect(x+6-w/2,y,w,10); });
+  st.sparks.forEach(p=>{ ctx.fillStyle = p.c; ctx.fillRect(Math.round(p.x - (p.screen?0:s)), Math.round(p.y), 2, 2); });
+  st.items.forEach(m=>drawSprite(MUSH, Math.round(m.x - s), Math.round(m.y), 2, MPAL));
+  // hero
+  const h = st.hero;
+  if (st.bossMode && save.mush>0 && !(st.boss && st.boss.dead)){
+    ctx.fillStyle = Math.floor(st.t/6)%2 ? 'rgba(42,212,200,.55)' : 'rgba(255,216,74,.55)';
+    ctx.fillRect(st.heroX-4, Math.round(h.y)-3, 28, 34);
+  }
+  if (!(h.flash>0 && Math.floor(h.flash*12)%2)){
+    let legs = LEGS_STAND;
+    if (!h.ground) legs = LEGS_JUMP; else if (st.scroll < st.target) legs = Math.floor(h.run)%2 ? LEGS_RUN_A : LEGS_RUN_B;
+    const bob = (h.ground && st.scroll>=st.target && (mode==='home' || mode==='shop')) ? (Math.floor(st.t/30)%2) : 0;
+    drawSprite(HERO_TOP.concat(legs), st.heroX-1, h.y + bob, 2, heroPal());
+  }
+  // projectiles (screen coords)
+  st.proj.forEach(p=>{
+    const x = Math.round(p.x), y = Math.round(p.y);
+    if (p.kind==='star' && p.dmg>1){
+      const on = Math.floor(st.t/3)%2, r = p.dmg>=9 ? 7 : 4;
+      ctx.fillStyle='#120f26'; ctx.fillRect(x-r-1,y-2,2*r+4,6); ctx.fillRect(x-1,y-r-1,4,2*r+4); ctx.fillRect(x-r+1,y-r+1,2*r,2*r);
+      ctx.fillStyle = on ? '#ffe14a' : (p.dmg>=9 ? '#ffffff' : '#2ad4c8'); ctx.fillRect(x-r+2,y-r+2,2*r-2,2*r-2); ctx.fillRect(x-r,y-1,2*r+2,4); ctx.fillRect(x,y-r,2,2*r+2);
+      ctx.fillStyle='rgba(255,225,74,.4)'; ctx.fillRect(x-r-10,y-1,10,4);
+    } else if (p.kind==='star'){
+      const on = Math.floor(st.t/3)%2;
+      ctx.fillStyle='#120f26'; ctx.fillRect(x-1,y-4,4,10); ctx.fillRect(x-4,y-1,10,4);
+      ctx.fillStyle= on ? '#ffe14a' : '#fff6dc'; ctx.fillRect(x,y-3,2,8); ctx.fillRect(x-3,y,8,2);
+    } else if (p.kind==='ice'){
+      ctx.fillStyle='#14284a'; ctx.fillRect(x-1,y-1,12,8); ctx.fillStyle='#9ae8ff'; ctx.fillRect(x,y,10,6); ctx.fillStyle='#ffffff'; ctx.fillRect(x+1,y+2,4,2);
+      ctx.fillStyle='rgba(154,232,255,.45)'; ctx.fillRect(x+10,y+1,8,4);
+    } else if (p.kind==='bolt'){
+      ctx.fillStyle='rgba(255,90,216,.45)'; ctx.fillRect(x-2,y-3,16,10);
+      ctx.fillStyle='#ffd84a'; ctx.fillRect(x,y,4,2); ctx.fillRect(x+3,y+2,4,2); ctx.fillRect(x+6,y,4,2); ctx.fillRect(x+9,y+2,3,2);
+    } else {
+      ctx.fillStyle='rgba(255,106,42,.45)'; ctx.fillRect(x+4,y,8,6);
+      ctx.fillStyle='#c4581d'; ctx.fillRect(x-1,y-1,8,8);
+      ctx.fillStyle='#ff6a2a'; ctx.fillRect(x,y,6,6); ctx.fillStyle='#ffd84a'; ctx.fillRect(x+1,y+1,3,3);
+    }
+  });
+  ctx.font = '8px "Press Start 2P", monospace'; ctx.direction='ltr'; ctx.textAlign='center';
+  st.pops.forEach(p=>{ const px = Math.round(p.x - (p.screen?0:s)); ctx.fillStyle='#120f26'; ctx.fillText(p.text, px+1, Math.round(p.y)+1); ctx.fillStyle=p.c; ctx.fillText(p.text, px, Math.round(p.y)); });
+}
+
+/* ---------- main loop ---------- */
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(3, (now-last)/16.67); last = now; st.t += dt;
+  const h = st.hero;
+  if (st.scroll < st.target){ st.scroll = Math.min(st.target, st.scroll + 2.6*dt); h.run += .18*dt; }
+  st.dusk += ((st.bossMode?1:0) - st.dusk) * Math.min(1,.04*dt);
+  if (!h.ground){
+    h.vy += .3*dt; h.y += h.vy*dt;
+    if (st.hitPending && h.vy < 0 && h.y + 1 <= BLOCK_Y + 20){ h.y = BLOCK_Y + 19; h.vy = 1.2; st.hitPending = false; onHit(); }
+    if (h.y >= st.heroGround){ h.y = st.heroGround; h.vy = 0; h.ground = true; }
+  }
+  if (h.flash>0) h.flash -= dt/60;
+  const b = st.boss;
+  if (b){
+    if (b.x > b.tx) b.x = Math.max(b.tx, b.x - 1.6*dt);
+    b.lunge = Math.max(0, b.lunge - .8*dt);
+    if (b.shake>0) b.shake -= dt; if (b.flash>0) b.flash -= dt/60;
+    if (b.dead) b.sink = Math.min(80, b.sink + .5*dt);
+  }
+  for (const k in st.bump){ st.bump[k] = Math.max(0, st.bump[k] - .5*dt); if (!st.bump[k]) delete st.bump[k]; }
+  for (const k in st.shake){ st.shake[k] -= dt; if (st.shake[k]<=0) delete st.shake[k]; }
+  st.coins.forEach(c=>{ c.vy += .22*dt; c.y += c.vy*dt; c.life += dt/60; }); st.coins = st.coins.filter(c=>c.life<.75);
+  st.pops.forEach(p=>{ p.y -= .4*dt; p.life += dt/60; }); st.pops = st.pops.filter(p=>p.life<(p.max||1));
+  st.sparks.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=.12*dt; p.life+=dt/60; }); st.sparks = st.sparks.filter(p=>p.life<(p.max||.6));
+  st.items.forEach(m=>{
+    m.t += dt;
+    if (m.t < 22) m.y = BLOCK_Y - (m.t/22)*16;
+    else { m.vy += .35*dt; m.y += m.vy*dt; }
+    if (m.t >= 22 && m.y >= st.hero.y){ m.done = true; collectMush(m); }
+  });
+  st.items = st.items.filter(m=>!m.done);
+  st.proj.forEach(p=>{
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    if (p.kind==='star' && p.x >= p.tx){ p.done = true; bossHit(p.dmg||1); }
+    else if (p.hostile && p.x <= p.tx){ p.done = true; heroHurt(); }
+  });
+  st.proj = st.proj.filter(p=>!p.done);
+  if (game && game.waitRun && st.scroll>=st.target && h.ground && (!b || b.x<=b.tx)){ game.waitRun = false; game.locked = false; }
+  draw();
+  requestAnimationFrame(loop);
+}
+function burst(x,y,n,colors,screen,spread=3){
+  for (let i=0;i<n;i++) st.sparks.push({x, y, vx:(Math.random()-.5)*spread, vy:-Math.random()*spread, c:colors[i%colors.length], life:0, screen, max:.8});
+}
+function onHit(){
+  const n = st.idx; st.used[n] = true; st.bump[n] = 6;
+  const bx = HERO_X + n*GAP;
+  st.coins.push({x:bx, y:BLOCK_Y-12, vy:-4.2, life:0});
+  st.pops.push({x:bx+6, y:BLOCK_Y-14, text:'+1', c:'#ffc83d', life:0});
+  burst(bx+6, BLOCK_Y, 10, ['#fff6dc','#ffc83d'], false);
+  sfx.coin(); addCoins(1);
+  if (st.mushNext){ st.mushNext = false; st.items.push({x:bx-2, y:BLOCK_Y, t:0, vy:0}); }
+}
+function collectMush(m){
+  save.mush++; persist(); updChips();
+  st.pops.push({x:m.x+8, y:st.hero.y-6, text:'POWER!', c:'#2ad4c8', life:0});
+  burst(m.x+8, st.hero.y+6, 14, ['#2ad4c8','#ffd84a','#fff6dc'], false, 3.5);
+  sfx.power();
+  const fb = $('fb'); if (fb && game && !game.isTest){ fb.className = 'fb good'; fb.textContent = '3 ברצף! קיבלת פטריית כוח לקרב הבוס!'; }
+}
+function addCoins(n){ save.coins += n; persist(); updChips(); }
+function updChips(){ $('coinTotal').textContent = save.coins; $('mushTotal').textContent = save.mush; }
+function bossHit(dmg){
+  const b = st.boss; if (!b || b.dead) return;
+  const real = Math.min(dmg, b.hp);
+  b.hp -= real; b.flash = .35 + (dmg>1?.25:0); b.shake = dmg>1 ? 36 : 22;
+  burst(b.x+30, 80, 16, ['#ffe14a','#fff6dc','#ff6a2a'], true, 4);
+  st.pops.push({x:b.x+30, y:60, text: dmg>=9 ? 'K.O.!' : '-'+real, c:'#ef5a46', life:0, screen:true});
+  if (dmg>1) burst(b.x+30, 80, 24, ['#2ad4c8','#ffe14a','#fff6dc'], true, 6);
+  sfx.hit();
+  if (b.hp <= 0){
+    b.dead = true; sfx.boom();
+    for (let i=0;i<4;i++) setTimeout(()=>burst(b.x+10+Math.random()*40, 70+Math.random()*40, 14, ['#ff6a2a','#ffd84a','#fff6dc'], true, 5), i*180);
+    st.pops.push({x:b.x+30, y:50, text:'+'+b.def.reward, c:'#ffc83d', life:0, screen:true});
+    addCoins(b.def.reward);
+  }
+}
+function heroHurt(){
+  st.hero.flash = .7; sfx.bad();
+  burst(st.heroX+10, st.hero.y+12, 10, ['#ff6a2a','#ffd84a'], true);
+}
+function resetStage(){
+  Object.assign(st, {scroll:0, target:0, used:{}, bump:{}, shake:{}, coins:[], pops:[], sparks:[], proj:[], items:[], mushNext:false, idx:0, hitPending:false,
+    bossMode:false, blockLimit:Infinity, boss:null, weather:null,
+    heroX:HERO_X, heroGround:GROUND-28});
+  Object.assign(st.hero, {y:GROUND-28, vy:0, ground:true, flash:0});
+}
+
+/* ---------- game logic ---------- */
+let mode = 'home', game = null, lastSetup = null;
+const later = (ms, fn) => { const g = game; setTimeout(()=>{ if (g && g===game) fn(); }, ms); };
+const weightOf = l => l===1 ? 4 : l===0 ? 3 : l===2 ? 2 : 1;
+const chTopics = ch => TOPICS.filter(t=>t.ch===ch);
+function weightedTopic(ch){
+  const pool = chTopics(ch).map(t=>({id:t.id, w:weightOf(level(t.id))}));
+  let r = Math.random() * pool.reduce((s,p)=>s+p.w,0);
+  for (const p of pool){ if ((r -= p.w) <= 0) return p.id; }
+  return pool[pool.length-1].id;
+}
+function makeQs(spec){
+  const out = [], seen = new Set();
+  for (const [t, star] of spec){
+    let q, n = 0;
+    do { q = genQ(t, star); n++; } while (seen.has(q.key) && n < 25);
+    seen.add(q.key); out.push(q);
+  }
+  return out;
+}
+// like the real test: every topic once, plus one more per chapter, in booklet order
+function buildTest(){
+  const spec = [];
+  CHAPTERS.forEach(c=>{
+    const ts = chTopics(c.n).map(t=>t.id);
+    const extra = pick(ts);
+    ts.forEach(id=>{ spec.push([id,false]); if (id===extra) spec.push([id,false]); });
+  });
+  return makeQs(spec);
+}
+function buildTopic(t){ const spec = Array.from({length:7}, ()=>[t,false]); if (STAR[t]) spec.push([t,true]); else spec.push([t,false]); return makeQs(spec); }
+function buildChapter(ch){
+  const ids = chTopics(ch).map(t=>t.id), spec = [];
+  for (let i=0;i<9;i++) spec.push([i < ids.length*2 ? ids[i % ids.length] : weightedTopic(ch), false]);
+  shuffle(spec); spec.push([pick(ids.filter(id=>STAR[id])), true]);
+  return makeQs(spec);
+}
+const bossQs = ch => makeQs(Array.from({length:14}, ()=>[weightedTopic(ch), false]));
+function chapterFor(setup){
+  if (setup.ch) return setup.ch;
+  if (setup.type==='topic') return topicById(setup.t).ch;
+  const cnt = {1:0,2:0,3:0};
+  if (setup.type==='test'){ game.results.forEach(r=>{ if (r && !r.ok) cnt[topicById(r.q.t).ch]++; }); }
+  else game.qs.forEach(q=>cnt[topicById(q.t).ch]++);
+  const max = Math.max(...Object.values(cnt));
+  return +pick(Object.keys(cnt).filter(k=>cnt[k]===max));
+}
+
+const ansDisp = (q, v) => q.kind==='num' ? fmt(v) + (q.unit ? ' ' + q.unit : '') : v;
+const dispHtml = (q, v) => q.kind==='num' ? `<span class="ltr">${fmt(v)}</span>` + (q.unit ? ' ' + esc(q.unit) : '') : q.sym ? `<span class="ltr">${esc(v)}</span>` : esc(v);
+const cur = () => game.phase==='boss' ? game.bq[game.bi] : game.qs[game.i];
+
+function start(setup){
+  lastSetup = setup;
+  let qs, label, isTest = false;
+  if (setup.type==='test'){ qs = buildTest(); label = 'מבחן הטירה'; isTest = true; }
+  else if (setup.type==='topic'){ qs = buildTopic(setup.t); label = setup.t + ' ' + topicById(setup.t).tile; }
+  else if (setup.type==='chapter'){ qs = buildChapter(setup.ch); label = 'פרק ' + setup.ch + ': הכל'; }
+  else if (setup.type==='boss'){ qs = []; label = 'קרב בוס'; }
+  else if (setup.type==='weak'){ qs = shuffle(save.wrong.map(q=>Object.assign({}, q))).slice(0,10); label = 'השאלות שטעיתי בהן'; }
+  else { qs = setup.list.map(q=>Object.assign({}, q)); label = 'חיזוק טעויות'; }
+  if (!qs.length && setup.type!=='boss') return;
+  game = { qs, base: qs.length, i:0, input:'', isTest, label, setup, results:[], locked:false, waitRun:false, retry:false,
+    requeued:new Set(), phase:'run', bq:[], bi:0, bossWrong:[], streak:0, goldenUsed:false };
+  enterPlay(label);
+  $('dots').hidden = false;
+  if (!qs.length) startBoss(); else renderQ();
+}
+function enterPlay(label){
+  resetStage();
+  mode = 'play'; show('play'); document.body.classList.add('playing');
+  $('stageHud').hidden = false; $('modeTag').textContent = label; $('modeTag').className = 'tag';
+  $('fb').textContent = ''; $('fb').className = 'fb';
+  window.scrollTo({top:0});
+}
+function setVis(id, html, asText){ const el = $(id); if (!html){ el.hidden = true; el.innerHTML = ''; return; } el.hidden = false; if (asText) el.textContent = html; else el.innerHTML = html; }
+function renderQ(){
+  const q = cur(), tp = topicById(q.t);
+  $('qTopic').textContent = tp.id + ' · ' + tp.name;
+  $('qStar').hidden = !q.star;
+  setVis('qText', q.text);
+  setVis('qWords', q.words, true);
+  setVis('qBig', q.big, true);
+  setVis('qVert', q.vert ? `<span></span><span>${fmt(q.vert.a)}</span><span>${q.vert.op}</span><span>${fmt(q.vert.b)}</span><div class="line"></div>` : '');
+  setVis('qVis', q.vis);
+  const isNum = q.kind==='num';
+  $('aRow').hidden = !isNum; $('pad').hidden = !isNum; $('qUnit').textContent = q.unit || '';
+  const c = $('choices'); c.hidden = isNum; c.innerHTML = '';
+  if (!isNum){
+    c.className = 'choices' + (q.long ? ' long' : '') + (q.sym ? ' sym' : '');
+    c.style.setProperty('--n', q.ch.length);
+    q.ch.forEach((x,i)=>{ const b = document.createElement('button'); b.className = 'choice'; b.dataset.c = i; b.textContent = x; c.appendChild(b); });
+  }
+  $('nextBtn').hidden = true;
+  game.input = ''; updAns(); $('ans').className = 'ans empty';
+  if (!game.keepFb){ $('fb').textContent = ''; $('fb').className = 'fb'; }
+  game.keepFb = false;
+  $('qCard').className = 'qcard' + (q.golden ? ' golden' : game.phase==='boss' ? ' boss' : '');
+  $('goKey').textContent = q.golden ? 'מכת ענק!' : game.phase==='boss' ? 'תקוף!' : 'בדיקה';
+  if (game.phase!=='boss') renderDots();
+}
+function renderDots(){
+  const n = game.base, d = $('dots'); d.innerHTML = '';
+  for (let i=0;i<n;i++){
+    const el = document.createElement('i'); el.className = 'dot';
+    const r = game.results[i]; if (r) el.classList.add(r.ok ? 'ok' : 'bad'); else if (i===game.i) el.classList.add('now');
+    d.appendChild(el);
+  }
+}
+function updAns(){ const a = $('ans'); a.textContent = game.input ? fmt(+game.input) : ''; a.classList.toggle('empty', !game.input); }
+
+const PRAISE = ['כל הכבוד!','מעולה!','אלוף!','יופי של קפיצה!','בול!','מדויק!','איזה כוכב!'];
+function press(k){
+  if (mode!=='play' || !game) return;
+  if (game.retry){ if (k==='go') advance(); return; }
+  if (game.locked) return;
+  const q = cur(); if (q.kind!=='num') return;
+  if (k==='del'){ game.input = game.input.slice(0,-1); updAns(); sfx.tap(); return; }
+  if (k==='go'){ if (game.input) submit(+game.input); return; }
+  if (/^\d$/.test(k) && game.input.length < 5){ game.input = (game.input==='0' ? '' : game.input) + k; updAns(); sfx.tap(); }
+}
+function choose(i){
+  if (mode!=='play' || !game || game.locked || game.retry) return;
+  const q = cur(); if (q.kind==='num' || i >= q.ch.length) return;
+  submit(q.ch[i], i);
+}
+// paint the answer: number box or the chosen button; on a revealed mistake also light the right choice
+function paintAnswer(q, ok, ci, reveal){
+  if (q.kind==='num'){ $('ans').classList.add(ok ? 'good' : 'bad'); return; }
+  const bs = [...$('choices').children];
+  if (ci !== undefined) bs[ci].classList.add(ok ? 'good' : 'bad');
+  if (!ok && reveal) bs.forEach(b=>{ if (b.textContent===q.ans) b.classList.add('good'); });
+}
+const correctHtml = q => `התשובה הנכונה: <b>${dispHtml(q, q.ans)}</b>` + (q.ex ? `<small>${q.ex}</small>` : '');
+function showRetry(){ game.retry = true; $('pad').hidden = true; $('nextBtn').hidden = false; }
+
+function submit(given, ci){
+  if (game.phase==='boss') return submitBoss(given, ci);
+  const q = game.qs[game.i], ok = given === q.ans;
+  const isOriginal = game.i < game.base;
+  record(q, ok);
+  if (isOriginal) game.results[game.i] = { q, ok, given };
+  game.locked = true;
+  const fb = $('fb');
+  paintAnswer(q, ok, ci, !game.isTest);
+  if (ok){
+    fb.className = 'fb good'; fb.textContent = PRAISE[Math.floor(Math.random()*PRAISE.length)];
+    game.streak++; if (game.streak % 3 === 0) st.mushNext = true;
+    const h = st.hero; h.vy = -4.6; h.ground = false; st.hitPending = true; sfx.jump();
+    later(950, advance);
+  } else {
+    game.streak = 0; sfx.bad(); st.shake[st.idx] = 24; st.hero.flash = .6;
+    if (game.isTest){
+      fb.className = 'fb bad'; fb.textContent = 'אופס! ממשיכים, נבדוק בסוף.';
+      later(1100, advance);
+    } else {
+      fb.className = 'fb bad'; fb.innerHTML = correctHtml(q) + '<small>השאלה תחזור שוב בהמשך.</small>';
+      if (!game.requeued.has(q.key)){ game.requeued.add(q.key); game.qs.push(q); }
+      showRetry();
+    }
+  }
+  renderDots();
+}
+function advance(){
+  game.retry = false;
+  if (game.phase==='boss') return nextBoss();
+  game.i++;
+  if (game.i >= game.qs.length){ startBoss(); return; }
+  st.idx = game.i; st.target = game.i * GAP; game.waitRun = true; game.locked = true;
+  renderQ();
+}
+
+/* ---------- boss: one per chapter ---------- */
+function startBoss(){
+  const ch = chapterFor(lastSetup), def = BOSSES.find(b=>b.ch===ch);
+  const short = ['topic','weak','list'].includes(lastSetup.type);
+  const hp = short ? 3 : def.hp;
+  game.phase = 'boss'; game.bossCh = ch; game.bq = bossQs(ch); game.bi = 0; game.bossDef = def;
+  game.forceGolden = save.tickets > 0;
+  Object.assign(st, { bossMode:true, sky:def.sky, hills:def.hills, weather:def.weather });
+  st.blockLimit = game.base ? st.idx : -1;
+  st.target = st.scroll + (game.base ? 90 : 0);
+  st.boss = { def, hp, max:hp, x: W + 20, tx: W - def.rows[0].length*3 - 24, lunge:0, shake:0, flash:0, dead:false, sink:0 };
+  game.locked = true; game.waitRun = true;
+  $('modeTag').textContent = 'בוס פרק ' + ch + ': ' + def.name; $('modeTag').className = 'tag boss';
+  $('dots').hidden = true;
+  const fb = $('fb'); fb.className = 'fb boss';
+  fb.textContent = def.name + ' חוסם את הדרך! ' + hp + ' פגיעות ינצחו אותו.' + (save.mush ? ` יש לך ${save.mush} פטריות למכה כפולה.` : '');
+  game.keepFb = true;
+  setTimeout(()=>sfx.roar(), 500);
+  renderQ();
+}
+function submitBoss(given, ci){
+  const q = game.bq[game.bi], ok = given === q.ans, def = game.bossDef;
+  record(q, ok);
+  game.locked = true;
+  const fb = $('fb'), h = st.hero;
+  paintAnswer(q, ok, ci, true);
+  if (ok){
+    fb.className = 'fb good';
+    let dmg = 1;
+    if (q.golden){ dmg = 99; fb.className = 'fb gold'; fb.textContent = 'פתרת את שאלת האתגר! מכת ענק!'; }
+    else if (save.mush > 0){ dmg = 2; save.mush--; persist(); updChips(); fb.textContent = 'כוח פטרייה! מכה כפולה!'; }
+    else {
+      const praise = ['פגיעה ישירה!', 'בום! ' + def.short + ' מתנדנד!', 'עוד פגיעה כזאת!', def.short + ' נבהל!'];
+      fb.textContent = st.boss.hp === 1 ? 'מכה אחרונה!' : praise[Math.floor(Math.random()*praise.length)];
+    }
+    h.vy = -3.6; h.ground = false; sfx.jump();
+    later(180, ()=>{ st.proj.push({kind:'star', dmg, x:st.heroX+20, y:h.y+8, vx:3.6, vy:(84-(h.y+8))/((st.boss.x+10-st.heroX-20)/3.6), tx:st.boss.x+10}); dmg>1 ? sfx.mega() : sfx.shoot(); });
+    later(1150, ()=>{
+      if (st.boss.dead){
+        game.bossWon = true;
+        save.beat[def.id] = (save.beat[def.id]||0) + 1; persist();
+        fb.className = 'fb good'; fb.textContent = 'ניצחת את ' + def.name + '!';
+        later(1800, finish);
+      } else nextBoss();
+    });
+  } else {
+    st.boss.lunge = 12; sfx.fire();
+    st.proj.push({kind:def.shot, hostile:true, x:st.boss.x+6, y:GROUND-30, vx:-3.2, vy:0, tx:st.heroX+14});
+    fb.className = 'fb bad';
+    fb.innerHTML = esc(def.short) + ' תקף! ' + correctHtml(q);
+    if (!q.golden && !game.bossWrong.some(w=>w.q.key===q.key)) game.bossWrong.push({q, given});
+    if (!q.golden) game.bq.splice(game.bi + 3, 0, q);
+    showRetry();
+  }
+}
+function nextBoss(){
+  game.retry = false; game.bi++;
+  if (game.bi >= game.bq.length) game.bq = game.bq.concat(bossQs(game.bossCh));
+  game.locked = false;
+  if (!game.goldenUsed && st.boss.hp > 1 && (game.forceGolden || Math.random() < .3)){
+    game.goldenUsed = true;
+    if (game.forceGolden){ save.tickets = Math.max(0, save.tickets-1); persist(); }
+    const ids = chTopics(game.bossCh).map(t=>t.id).filter(id=>STAR[id]);
+    const g = genQ(pick(ids), true); g.golden = true;
+    game.bq.splice(game.bi, 0, g);
+    renderQ(); sfx.power();
+    const fb = $('fb'); fb.className = 'fb gold'; fb.textContent = 'לבנת זהב! פתור את שאלת האתגר ותחסל את ' + game.bossDef.short + ' במכה אחת!';
+    return;
+  }
+  renderQ();
+}
+
+function showMistakes(list){
+  $('mist').innerHTML = list.map(r=>`<div class="mi"><span class="mq">${r.q.sum}</span><span class="ma">${dispHtml(r.q, r.q.ans)}</span>${r.given!==undefined && r.given!==null ? '<s>'+dispHtml(r.q, r.given)+'</s>' : ''}</div>`).join('');
+  $('fixBtn').hidden = !list.length;
+  game.wrongList = list.map(r=>r.q);
+}
+function finish(){
+  mode = 'results'; show('results'); document.body.classList.remove('playing');
+  const def = game.bossDef;
+  const n = game.base, score = game.results.filter(r=>r && r.ok).length;
+  const stars = !n ? 0 : score>=n ? 3 : score>=n*.8 ? 2 : score>=n*.6 ? 1 : 0;
+  $('stars').hidden = !n; $('score').hidden = !n;
+  $('stars').innerHTML = [0,1,2].map(i=>`<span class="${i<stars?'on':'off'}">★</span>`).join('');
+  $('score').textContent = score + '/' + n;
+  if (!n) $('resTitle').textContent = def.name + ' הובס!';
+  else if (game.isTest){
+    $('resTitle').textContent = stars===3 ? 'כבשת את הטירה!' : 'הגעת לטירה!';
+    if (save.best===null || score > save.best){ save.best = score; persist(); }
+  } else $('resTitle').textContent = game.label + ': סיבוב הושלם!';
+  const bl = $('bossLine'); bl.hidden = false;
+  bl.textContent = `ניצחת את ${def.name}! +${def.reward} מטבעות`;
+  const msgs = ['כל ניסיון מקרב אותך. בוא נחזור על השאלות האלה.','התחלה טובה! עוד סיבוב וזה ייראה אחרת.','יפה מאוד! עוד קצת ואתה שם.','מושלם! אתה מוכן למבחן.'];
+  $('resMsg').textContent = n ? msgs[stars] : 'עוד בוס הובס. כל הכבוד!';
+  // per-topic table for the castle test, like "איך הצלחתי?"
+  const tr = $('tres'); tr.innerHTML = '';
+  if (game.isTest){
+    const by = {};
+    game.results.forEach(r=>{ const b = by[r.q.t] || (by[r.q.t] = {ok:0,n:0}); b.n++; if (r.ok) b.ok++; });
+    tr.innerHTML = TOPICS.filter(t=>by[t.id]).map(t=>{ const b = by[t.id], c = b.ok===b.n ? 'c3' : b.ok ? 'c2' : 'c1';
+      return `<div class="${c}"><span>${t.id} ${t.tile}</span><span class="ltr">${b.ok}/${b.n}</span></div>`; }).join('');
+  }
+  const wrong = game.results.filter(r=>r && !r.ok);
+  game.bossWrong.forEach(w=>{ if (!wrong.some(r=>r.q.key===w.q.key)) wrong.push(w); });
+  showMistakes(wrong);
+  if (stars>=2 || !n) sfx.win();
+  $('stageHud').hidden = true;
+  renderHome();
+  window.scrollTo({top:0});
+}
+
+/* ---------- shop ---------- */
+const GEAR = [
+  { id:'mush', name:'פטריית כוח', desc:'בקרב בוס, הפגיעה הבאה שלך מורידה 2 חיים.', price:8, icon:[MUSH,MPAL], have:()=>save.mush, add:()=>save.mush++ },
+  { id:'ticket', name:'כרטיס לבנת זהב', desc:'בקרב הבוס הבא תופיע לבטח לבנת זהב עם שאלת אתגר ★ שמחסלת אותו במכה אחת.', price:25, icon:[GOLDBLK,GPAL], have:()=>save.tickets, add:()=>save.tickets++ }
+];
+function renderShop(){
+  $('shopCoins').textContent = save.coins;
+  $('shopGear').innerHTML = GEAR.map(g=>{
+    const short = save.coins < g.price;
+    return `<div class="item"><canvas class="px" data-icon="${g.id}"></canvas><b>${g.name}</b><p>${g.desc}</p><span class="have">יש לך: <span class="ltr">${g.have()}</span></span>
+      <button class="btn" data-buy="${g.id}" ${short?'disabled':''}>${short ? 'חסרים ' + (g.price-save.coins) + ' מטבעות' : 'קנה · ' + g.price + ' מטבעות'}</button></div>`;
+  }).join('');
+  $('shopSkins').innerHTML = Object.entries(OUTFITS).map(([id,o])=>{
+    const own = save.outfits.includes(id), worn = save.outfit===id, short = save.coins < o.price;
+    let btn;
+    if (worn) btn = `<button class="btn green" disabled>לובש עכשיו</button>`;
+    else if (own) btn = `<button class="btn green" data-wear="${id}">ללבוש</button>`;
+    else btn = `<button class="btn" data-skin="${id}" ${short?'disabled':''}>${short ? 'חסרים ' + (o.price-save.coins) + ' מטבעות' : 'קנה · ' + o.price + ' מטבעות'}</button>`;
+    return `<div class="item${worn?' worn':''}"><canvas class="px" data-hero="${id}"></canvas><b>${o.name}</b>${btn}</div>`;
+  }).join('');
+  document.querySelectorAll('[data-icon]').forEach(c=>{ const g = GEAR.find(x=>x.id===c.dataset.icon); paintIcon(c, g.icon[0], g.icon[1]); });
+  document.querySelectorAll('[data-hero]').forEach(c=>paintIcon(c, HERO_TOP.concat(LEGS_STAND), heroPal(c.dataset.hero)));
+}
+let toastT = 0;
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 1600); }
+$('shop').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.buy){
+    const g = GEAR.find(x=>x.id===b.dataset.buy); if (save.coins < g.price) return;
+    save.coins -= g.price; g.add(); persist(); sfx.buy(); toast('קנית ' + g.name + '!');
+  } else if (b.dataset.skin){
+    const o = OUTFITS[b.dataset.skin]; if (save.coins < o.price) return;
+    save.coins -= o.price; save.outfits.push(b.dataset.skin); save.outfit = b.dataset.skin; persist(); sfx.buy(); toast('קנית את ' + o.name + '!');
+  } else if (b.dataset.wear){
+    save.outfit = b.dataset.wear; persist(); sfx.power(); toast('עכשיו אתה ' + OUTFITS[b.dataset.wear].name + '!');
+  } else return;
+  updChips(); renderShop();
+});
+function openShop(){ mode = 'shop'; game = null; resetStage(); renderShop(); show('shop'); window.scrollTo({top:0}); }
+
+/* ---------- home ---------- */
+function renderHome(){
+  updChips();
+  $('bestLine').innerHTML = save.best===null ? 'עוד לא ניסית. בהצלחה!' : 'השיא שלך: <b class="ltr">' + save.best + '/12</b>';
+  const wrap = $('chapters'); wrap.innerHTML = '';
+  CHAPTERS.forEach(c=>{
+    const def = BOSSES.find(b=>b.ch===c.n), wins = save.beat[def.id] || 0;
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `<div class="chap-head"><span class="chap-n">פרק ${c.n}</span><h2>${c.name}</h2></div><div class="topics"></div>
+      <button class="boss-row" data-b="${def.id}"><canvas class="px"></canvas><span><b>קרב בוס: ${def.name}</b><small>${wins ? 'ניצחת ×' + wins : def.hp + ' פגיעות'} · שאלות מכל הפרק</small></span></button>`;
+    const tg = card.querySelector('.topics');
+    chTopics(c.n).forEach(t=>{
+      const b = document.createElement('button'); b.className = 'topic';
+      b.innerHTML = `<span class="tid ltr">${t.id}</span><b>${t.tile}</b><i class="lv c${level(t.id)}" title="${LV_TXT[level(t.id)]}"></i>`;
+      b.setAttribute('aria-label', t.id + ' ' + t.name + ', ' + LV_TXT[level(t.id)]);
+      b.onclick = () => start({type:'topic', t:t.id});
+      tg.appendChild(b);
+    });
+    const mx = document.createElement('button'); mx.className = 'topic mix';
+    mx.innerHTML = `<span class="tid">★</span><b>כל הפרק</b>`; mx.onclick = () => start({type:'chapter', ch:c.n});
+    tg.appendChild(mx);
+    paintIcon(card.querySelector('.boss-row canvas'), def.rows, def.pal({flash:0, dead:false}, 0));
+    card.querySelector('.boss-row').onclick = () => start({type:'boss', ch:c.n});
+    wrap.appendChild(card);
+  });
+  const nW = save.wrong.length;
+  $('weakSub').textContent = nW ? `יש ${nW} שאלות שמחכות לתיקון. שאלה שתפתור נכון יוצאת מהרשימה.` : 'כל שאלה שטעית בה נשמרת כאן, עד שתפתור אותה נכון.';
+  $('weakBtn').disabled = !nW; $('weakBtn').textContent = nW ? `לתרגל (${Math.min(nW,10)})` : 'אין עדיין';
+  $('how').innerHTML = TOPICS.map(t=>{ const l = level(t.id);
+    return `<div class="how-row"><span class="nm"><i class="ltr">${t.id}</i><span>${t.name}</span></span><span class="lvchip c${l}">${LV_TXT[l]}</span></div>`; }).join('');
+}
+function show(id){ ['home','play','results','shop'].forEach(s=>$(s).hidden = s!==id); }
+function goHome(){ mode='home'; game=null; document.body.classList.remove('playing'); $('stageHud').hidden = true; resetStage(); renderHome(); show('home'); window.scrollTo({top:0}); }
+
+/* ---------- wiring ---------- */
+document.addEventListener('pointerdown', ensureAudio, {passive:true});
+document.addEventListener('keydown', ensureAudio);
+$('pad').addEventListener('click', e => { const k = e.target.closest('[data-k]'); if (k) press(k.dataset.k); });
+$('choices').addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (b) choose(+b.dataset.c); });
+$('nextBtn').onclick = () => { if (game && game.retry){ $('nextBtn').hidden = true; advance(); } };
+document.addEventListener('keydown', e => {
+  if (mode!=='play' || !game) return;
+  if (game.retry){ if (e.key==='Enter'){ e.preventDefault(); $('nextBtn').click(); } return; }
+  const q = cur();
+  if (q.kind!=='num'){ if (/^[1-9]$/.test(e.key)) choose(+e.key - 1); return; }
+  if (/^\d$/.test(e.key)) press(e.key);
+  else if (e.key==='Backspace'){ e.preventDefault(); press('del'); }
+  else if (e.key==='Enter'){ e.preventDefault(); press('go'); }
+});
+$('testBtn').onclick = () => start({type:'test'});
+$('shopBtn').onclick = openShop;
+$('shopBack').onclick = goHome;
+$('weakBtn').onclick = () => start({type:'weak'});
+$('quitBtn').onclick = goHome;
+$('mapBtn').onclick = goHome;
+$('againBtn').onclick = () => start(lastSetup);
+$('fixBtn').onclick = () => start({type:'list', list: game.wrongList});
+const updMute = () => { $('muteBtn').textContent = save.muted ? '🔇' : '🔊'; };
+$('muteBtn').onclick = () => { save.muted = !save.muted; persist(); updMute(); };
+paintIcon($('mushIco'), MUSH, MPAL);
+updMute(); renderHome();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
